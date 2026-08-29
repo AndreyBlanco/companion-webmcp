@@ -1,0 +1,47 @@
+# Dependency and Provenance Policy
+
+## 1. Direct dependencies
+
+Before adding a direct dependency, record:
+
+- package and pinned or constrained version;
+- official source;
+- purpose and acceptance criterion served;
+- license and compatibility conclusion;
+- maintenance and security considerations;
+- alternatives considered; and
+- approving change or review.
+
+Use a lockfile after the package manager is selected. Avoid dependencies that do not reduce material implementation or security risk.
+
+## 2. Code and assets
+
+Do not copy code, prompts, documentation, images, audio, datasets or test cases from a private repository.
+
+Third-party material must have a traceable source and compatible license. Record modifications and preserve required notices. Generated material must identify the generating tool or process when provenance matters.
+
+## 3. Secrets and configuration
+
+Commit only example environment files with placeholder values. Never commit credentials, tokens, private URLs or production identifiers.
+
+Local and deployment secrets must be supplied outside version control. Logs and test artifacts must not echo secrets or captured content.
+
+## 4. Review before publication
+
+Before any push to a public remote or release:
+
+1. inspect tracked files and full reachable history;
+2. scan for secrets and private-host identifiers;
+3. review dependency licenses and notices;
+4. confirm fixture provenance;
+5. inspect generated output and source maps;
+6. verify no external local paths or links exist; and
+7. record unresolved risks and the publication decision.
+
+## 5. Dependency register
+
+The 2026-08-29 Weekend Sprint authorization selected Node.js 24 or newer as the sole runtime. It is used for the local HTTP demo, native test runner, syntax checks and build copy. Source: https://nodejs.org/; license: MIT; version policy: current Node 24 major or newer. No npm package or third-party asset is used, so no lockfile is generated.
+
+Alternatives considered: a browser framework and TypeScript toolchain. Both were rejected for the initial evidence slice because standard JavaScript and Node cover the acceptance criteria with a smaller dependency and license surface.
+
+The WebMCP registration shape follows the public W3C Community Group draft at https://webmachinelearning.github.io/webmcp/ and is isolated behind feature detection because the API is emerging.

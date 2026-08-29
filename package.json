@@ -1,0 +1,17 @@
+{
+  "name": "companion-webmcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Public, dependency-free vertical slice for confirmed subject-scoped memory and WebMCP retrieval.",
+  "scripts": {
+    "demo": "node src/app/server.js",
+    "test": "node --test",
+    "check": "node --check src/contracts/index.js && node --check src/core/companion.js && node --check src/adapters/demo/store.js && node --check src/webmcp/register.js && node --check src/app/client.js && node --check src/app/server.js",
+    "build": "node scripts/build.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}

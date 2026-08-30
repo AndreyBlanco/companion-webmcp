@@ -6,13 +6,26 @@ const LABELS = new Map([
   ['response', 'response'],
   ['follow up', 'followUp'],
   ['follow-up', 'followUp'],
-  ['followup', 'followUp']
+  ['followup', 'followUp'],
+  ['observación', 'observation'],
+  ['observacion', 'observation'],
+  ['estrategia', 'strategy'],
+  ['respuesta', 'response'],
+  ['seguimiento', 'followUp'],
+  ['próximo paso', 'followUp'],
+  ['proximo paso', 'followUp']
 ]);
 
 function extractExplicitFields(rawText) {
   const result = { observation: null, strategy: null, response: null, followUp: null };
-  const pattern = /(?:^|\n)\s*(observation|strategy|response|follow[- ]?up)\s*:\s*([^\n]+)/gi;
-  for (const match of rawText.matchAll(pattern)) result[LABELS.get(match[1].toLowerCase())] = match[2].trim();
+  const pattern = /(?:^|\s)(observation|strategy|response|follow[- ]?up|observaci[oó]n|estrategia|respuesta|seguimiento|pr[oó]ximo paso)\s*:\s*/gi;
+  const matches = [...rawText.matchAll(pattern)];
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    const valueStart = match.index + match[0].length;
+    const valueEnd = matches[index + 1]?.index ?? rawText.length;
+    result[LABELS.get(match[1].toLowerCase())] = rawText.slice(valueStart, valueEnd).trim();
+  }
   if (!result.observation) result.observation = rawText.trim();
   return result;
 }
@@ -30,7 +43,19 @@ function groundedSummary(record) {
   ].filter(([, value]) => value !== null).map(([label, value]) => `${label}: ${value}`).join('\n');
 }
 
-export function createCompanionCapabilities({ store, clock = () => new Date(), idFactory = () => crypto.randomUUID() }) {
+export function createDemoId(cryptoApi = globalThis.crypto) {
+  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
+  if (typeof cryptoApi?.getRandomValues === 'function') {
+    const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0'));
+    return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
+  }
+  return `demo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function createCompanionCapabilities({ store, clock = () => new Date(), idFactory = createDemoId }) {
   const drafts = new Map();
 
   async function structureCapture(input) {

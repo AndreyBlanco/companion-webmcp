@@ -66,6 +66,18 @@ npm run demo
 
 Open `http://127.0.0.1:4173`. The demo uses memory only and resets when the process stops. A browser with the emerging `document.modelContext` API discovers `search_companion_observations`; other browsers retain the complete application flow.
 
+### Optional synthetic audio validation
+
+Audio transcription uses the OpenAI `gpt-transcribe` file endpoint. Set `OPENAI_API_KEY` in the server process environment; never put it in this repository or browser code. Start the normal localhost demo, select **Start recording**, speak only invented content, stop, review the transcript and structured draft, then explicitly confirm. A selected audio file follows the same endpoint. The demo accepts at most 10 MiB and does not save audio, but the audio is sent to OpenAI and may consume API credits.
+
+For the controlled phone test on a trusted local network only:
+
+```sh
+npm run demo:lan
+```
+
+Open one of the printed LAN URLs on the phone. Browser microphone APIs commonly require HTTPS away from `localhost`; use the audio file control to invoke/select a phone recording when direct recording is unavailable. LAN mode exposes the paid transcription endpoint to devices on that network, so stop the server immediately after the test.
+
 The parser recognizes only explicit line labels (`Observation:`, `Strategy:`, `Response:`, and `Follow-up:`). It preserves the source and leaves all unprovided optional fields unknown. Previewing creates a draft; persistence requires the separate confirmation action.
 
 ## Security and provenance

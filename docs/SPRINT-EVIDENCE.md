@@ -82,6 +82,20 @@ The first post-change Motorola transcription reached structuring but failed beca
 
 The project authority then repeated the post-change phone flow and reported successful transcription, review and save. This closes the observed compatibility failure and makes HG-TECH **PASS**: the UX intervention retains the validated vertical slice on the target Motorola HTTPS route.
 
+### Reproducibility closure and final decision
+
+Commit `051a7a2` (`feat: prepare competition demo flow`) was cloned locally with `--no-local --no-hardlinks` into an independent directory. Without package installation, API credentials or private-host access, that checkout passed 13 tests with 0 failures, syntax check and build. The source repository had no remotes or tags; diff checks, scope inspection and secret scanning found no blocker. The only credential-shaped literal was the explicit synthetic test fixture `sk-test`.
+
+| Gate | Final result |
+|---|---|
+| UX mínima | PASS |
+| Regresión | PASS |
+| WebMCP real | PASS |
+| Clean checkout | PASS |
+| Scope freeze | PRESERVED |
+
+Final decision: **GO — Competition Packaging**. Exploratory prototype development for the hackathon is closed; subsequent work should focus on README, narrative, evidence, video and submission.
+
 - Authorization: WS-AA-001, supplied directly with the delegated task
 - Timer start: 2026-08-29 09:17:19 -06:00
 - External pause start: approximately 2026-08-29 10:01 -06:00

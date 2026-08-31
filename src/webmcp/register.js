@@ -1,26 +1,29 @@
-export const SEARCH_TOOL_NAME = 'search_companion_observations';
+import { SEMANTIC_KINDS } from '../core/semantic-memory.js';
 
-export function createSearchTool(capabilities) {
+export const MEMORY_TOOL_NAME = 'query_companion_memory';
+
+export function createMemoryTool(capabilities) {
   return {
-    name: SEARCH_TOOL_NAME,
-    title: 'Search confirmed observations',
-    description: 'Search confirmed memory for exactly one synthetic subject and return record IDs as evidence.',
+    name: MEMORY_TOOL_NAME,
+    title: 'Query confirmed Companion memory',
+    description: 'Returns subject-scoped confirmed evidence records. The calling agent, not this tool, synthesizes an answer.',
     inputSchema: {
       type: 'object',
       properties: {
-        subjectId: { type: 'string', description: 'Exact synthetic subject identifier.' },
-        question: { type: 'string', description: 'Question answered only from that subject memory.' }
+        question: { type: 'string', description: 'Question used only to select relevant evidence.' },
+        subjectId: { type: 'string', description: 'Optional exact subject identifier; defaults to the active subject.' },
+        evidenceTypes: { type: 'array', items: { enum: SEMANTIC_KINDS } }
       },
-      required: ['subjectId', 'question'],
+      required: ['question'],
       additionalProperties: false
     },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
-    execute: capabilities.searchObservations
+    execute: capabilities.queryMemory
   };
 }
 
 export async function registerWebMcp(modelContext, capabilities) {
   if (!modelContext?.registerTool) return { available: false, reason: 'WebMCP is unavailable; the application remains usable.' };
-  await modelContext.registerTool(createSearchTool(capabilities));
-  return { available: true, toolName: SEARCH_TOOL_NAME };
+  await modelContext.registerTool(createMemoryTool(capabilities));
+  return { available: true, toolName: MEMORY_TOOL_NAME };
 }

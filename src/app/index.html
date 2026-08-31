@@ -1,40 +1,10 @@
-<!doctype html>
-<html lang="es">
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Companion WebMCP — demostración sintética</title>
-<style>
-  :root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#20231f;background:#f5f4ee;line-height:1.5}
-  *{box-sizing:border-box}body{max-width:720px;margin:0 auto;padding:2rem 1rem 4rem}h1{margin-bottom:.25rem}h2{font-size:1.25rem;margin:0}p{margin:.4rem 0}.intro{color:#555b52}.steps{display:flex;gap:.5rem;margin:2rem 0 1rem;padding:0;list-style:none}.steps li{flex:1;padding:.65rem;text-align:center;border-radius:999px;background:#e5e4dc;color:#64685f;font-weight:650}.steps li[aria-current="step"]{background:#233c2e;color:white}.card{display:grid;gap:1rem;margin:1rem 0;padding:1.25rem;background:white;border:1px solid #d9d8d0;border-radius:1rem;box-shadow:0 5px 20px #272c2610}label{display:grid;gap:.35rem;font-weight:650}input,textarea,button{font:inherit}input,textarea{width:100%;padding:.7rem;border:1px solid #a9aca5;border-radius:.55rem}textarea{min-height:9rem;resize:vertical}.primary{padding:.9rem 1.1rem;border:0;border-radius:.7rem;background:#176c46;color:white;font-weight:750;cursor:pointer}.primary.record{font-size:1.15rem;padding:1.15rem}.primary.stop{background:#b42318}.primary:disabled{background:#bdc2bc;cursor:not-allowed}.secondary{padding:.65rem;border:1px solid #a9aca5;border-radius:.55rem;background:white;cursor:pointer}.status{min-height:1.5rem;font-weight:700}.status.recording{color:#b42318}.success{padding:1rem;border-radius:.7rem;background:#e5f7ec;color:#175c38;font-weight:750}.muted,details{color:#5f645c;font-size:.92rem}details{margin-top:1rem}details .technical{display:grid;gap:.8rem;padding:.8rem 0}pre{white-space:pre-wrap;overflow:auto;background:#20231f;color:#edf3ed;padding:1rem;border-radius:.55rem}[hidden]{display:none!important}
-</style>
-<main>
-  <h1>Registra lo importante, antes de olvidarlo</h1>
-  <p class="intro">Habla, revisa la transcripción y guarda la observación. Esta demo usa sólo información sintética y memoria temporal.</p>
-  <ol class="steps" aria-label="Progreso"><li id="step-talk" aria-current="step">1. Hablar</li><li id="step-review">2. Revisar</li><li id="step-save">3. Guardar</li></ol>
-  <section id="talk-panel" class="card" aria-labelledby="talk-title">
-    <h2 id="talk-title">Registra una observación</h2><p>Cuando estés lista, inicia la grabación.</p>
-    <button type="button" id="record" class="primary record">● Iniciar grabación</button>
-    <button type="button" id="stop-recording" class="primary stop" disabled hidden>■ Detener grabación</button>
-    <p id="audio-status" class="status" role="status" aria-live="assertive">Lista para grabar.</p>
-    <label class="muted">También puedes seleccionar un audio sintético<input type="file" id="audio-file" accept="audio/*" capture></label>
-  </section>
-  <form id="review-panel" class="card" hidden aria-labelledby="review-title">
-    <h2 id="review-title">Revisa la transcripción</h2><p>Corrige el texto si algo no quedó como lo dijiste.</p>
-    <label>Transcripción<textarea id="raw-text" required></textarea></label>
-    <button id="confirm" class="primary">Guardar observación</button>
-    <button type="button" id="cancel" class="secondary">Descartar y volver a empezar</button>
-  </form>
-  <section id="success-panel" class="card" hidden aria-labelledby="success-title">
-    <div class="success" role="status"><h2 id="success-title">✓ Observación guardada</h2><p>Ya está. La observación quedó en la memoria de esta demo.</p></div>
-    <button type="button" id="new-observation" class="secondary">Registrar otra observación</button>
-  </section>
-  <details><summary>Detalles técnicos</summary><div class="technical">
-    <p id="webmcp-status">Comprobando WebMCP…</p>
-    <label>ID sintético del sujeto <input id="subject-id" value="subject-orchid" required></label>
-    <label>Nombre sintético <input id="subject-name" value="Orquídea" required></label>
-    <form id="text-entry"><button class="secondary">Usar texto sintético de ejemplo</button></form>
-    <form id="search"><label>Pregunta de recuperación <input id="question" value="¿Qué estrategia se usó para el laberinto?" required></label><button class="secondary">Probar recuperación confirmada</button></form>
-    <pre id="output" aria-live="polite">Aún no hay operaciones.</pre>
-  </div></details>
-</main>
-<script type="module" src="/app/client.js"></script>
-</html>
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Companion WebMCP — Release Candidate</title>
+<style>:root{font-family:system-ui;color:#20231f;background:#f5f4ee}*{box-sizing:border-box}body{max-width:760px;margin:auto;padding:2rem 1rem}h1{margin-bottom:.2rem}.steps{display:flex;gap:.5rem;padding:0;list-style:none}.steps li{flex:1;text-align:center;padding:.6rem;border-radius:2rem;background:#ddd}.steps [aria-current]{background:#174d34;color:#fff}.card{display:grid;gap:1rem;background:#fff;border:1px solid #d5d5cf;border-radius:1rem;padding:1.2rem;margin:1rem 0}label{display:grid;gap:.3rem;font-weight:650}textarea,input,button{font:inherit;padding:.7rem}textarea{min-height:8rem}.primary{background:#176c46;color:#fff;border:0;border-radius:.6rem;font-weight:700}.secondary{background:#fff;border:1px solid #999;border-radius:.6rem}pre{white-space:pre-wrap;overflow:auto;background:#20231f;color:#eef5ef;padding:1rem}[hidden]{display:none!important}.muted{color:#59605a}</style>
+<main><h1>Registra evidencia confirmada</h1><p class="muted">Demo sintética: habla mediante transcripción o escribe, revisa y guarda. La memoria dura solo esta sesión.</p>
+<ol class="steps"><li id="step-talk" aria-current="step">1. Hablar</li><li id="step-review">2. Revisar</li><li id="step-save">3. Guardar</li></ol>
+<section id="talk-panel" class="card"><h2>Entrada natural</h2><form id="text-entry"><label>Texto<textarea id="entry" required placeholder="Describe una observación sintética…"></textarea></label><button class="primary">Interpretar</button></form><button id="example" class="secondary">Usar siguiente entrada del escenario Hyundai</button><p class="muted">La ruta de audio existente puede alimentar este mismo campo mediante <code>/api/transcribe</code>; nunca se guarda antes de confirmar.</p></section>
+<form id="review-panel" class="card" hidden><h2>Revisar</h2><label>Fuente original<textarea id="raw-text" required></textarea></label><p><strong>Resolución:</strong> <span id="resolution"></span></p><button class="primary">Confirmar y guardar</button><button type="button" id="cancel" class="secondary">Cancelar</button></form>
+<section id="save-panel" class="card" hidden><h2>✓ Guardado</h2><p>La fuente y su delta semántico quedaron vinculados.</p><button id="new-observation" class="secondary">Agregar otra entrada</button></section>
+<details><summary>WebMCP y evidencia técnica</summary><div class="card"><p id="webmcp-status">Comprobando WebMCP…</p><form id="search"><label>Sujeto<input id="subject-id" value="hyundai-accent-blue-2013"></label><label>Pregunta<input id="question" value="¿Qué evidencia apunta específicamente al cilindro 2?"></label><button class="secondary">Consultar memoria</button></form><pre id="output">Aún no hay operaciones.</pre></div></details></main>
+<script type="module" src="/app/client.js"></script></html>

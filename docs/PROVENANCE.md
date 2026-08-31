@@ -40,7 +40,7 @@ Before any push to a public remote or release:
 
 ## 5. Dependency register
 
-The 2026-08-29 Weekend Sprint authorization selected Node.js 24 or newer as the sole runtime. It is used for the local HTTP demo, native test runner, syntax checks and build copy. Source: https://nodejs.org/; license: MIT; version policy: current Node 24 major or newer. No npm package or third-party asset is used, so no lockfile is generated.
+The 2026-08-29 Weekend Sprint authorization selected Node.js 24 or newer as the sole runtime. It is used for the local HTTP demo, native test runner, syntax checks and build copy. Source: https://nodejs.org/; license: MIT; version policy: current Node 24 major or newer. No npm package or third-party asset is used; `package-lock.json` records that dependency-free package state for reproducible installation.
 
 Alternatives considered: a browser framework and TypeScript toolchain. Both were rejected for the initial evidence slice because standard JavaScript and Node cover the acceptance criteria with a smaller dependency and license surface.
 

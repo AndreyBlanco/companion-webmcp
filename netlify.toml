@@ -1,0 +1,13 @@
+[build]
+  publish = "src"
+
+[[redirects]]
+  from = "/"
+  to = "/app/index.html"
+  status = 302
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

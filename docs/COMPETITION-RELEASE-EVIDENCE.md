@@ -50,13 +50,31 @@ Exact confirmed `rawText` remains primary evidence. Semantic items are additive 
 | Negative retrieval | PASS | compression query returned no records and `insufficientEvidence: true` |
 | No fabricated answer | PASS | automated test and observed payload contain no `answer` field |
 | Clean checkout | PASS | fresh `--no-local` clone; install, 10 tests, check and build passed |
-| Public deployment | NOT VERIFIED |
+| Public deployment | PASS | Netlify production origin verified through the browser |
 
 ## Exposure and deployment
 
 The deterministic semantic demo is browser-local and does not require a billable provider. The retained local `/api/transcribe` route is billable, limited to audio, capped at 10 MiB, sanitizes filenames and retains no audio. It has no production authentication and therefore must not be exposed as an unrestricted public endpoint. No semantic provider endpoint was promoted.
 
-A public deployment was not performed or identified during Block 1. Local behavior is not counted as deployment evidence. This is the current release blocker.
+The deterministic static application is deployed at `https://companion-webmcp-challenge.netlify.app`. Netlify publishes only `src`; no functions or paid provider endpoint are deployed. Public `POST /api/transcribe` and `POST /api/semantic` both return HTTP 404.
+
+## Public deployment verification
+
+- Public URL: `https://companion-webmcp-challenge.netlify.app`
+- Deployed branch: `release/webmcp-challenge`
+- Deployment candidate commit: `95664d22ca7c28779ba6a61a041614269b4e47bf`; the final evidence commit is recorded in the closure report and redeployed after this document update.
+- Application load: PASS; HTTPS origin loaded the Release Candidate title and coherent Hablar → Revisar → Guardar flow.
+- Explicit confirmation: PASS; the synthetic record reached the visible saved state.
+- Session memory: PASS; the confirmed record remained available to the tool in the same page session.
+- WebMCP discovery: PASS; the browser reported `query_companion_memory` with origin `https://companion-webmcp-challenge.netlify.app`.
+- WebMCP invocation: PASS through the public page's WebMCP surface.
+- Positive retrieval: PASS; the cylinder 2 question returned the confirmed absent-spark evidence record.
+- Negative retrieval: PASS; the compression-test question returned zero records and `insufficientEvidence: true`.
+- Fabricated answer: none; neither payload contains an `answer` field.
+- `/api/transcribe`: HTTP 404; not publicly usable.
+- Paid semantic endpoint: HTTP 404; not exposed.
+- Secrets/privacy: no environment secrets, private data, functions, experiment traces or laboratory artifacts are in the published static tree.
+- Deployment-only changes: `netlify.toml` static publish/redirect/security headers and `.netlify` local-state ignore.
 
 ## Audit
 
@@ -78,5 +96,4 @@ A public deployment was not performed or identified during Block 1. Local behavi
 ## Final state
 
 - Final release commit: the commit containing this evidence document; its exact hash is recorded in the final Block 1 report because a commit cannot self-record its own hash.
-- Final decision: **NO-GO — RELEASE BLOCKER** unless a public deployment from the Release Candidate is verified without exposing the billable transcription endpoint.
-- Minimum corrective action: deploy the deterministic static competition path from this branch to the intended public host, then verify application load, semantic confirmation/persistence, WebMCP discovery/invocation, and positive/negative queries at that public origin. Keep `/api/transcribe` disabled or place it behind a competition-safe boundary.
+- Final decision: **GO — COMPETITION RELEASE CANDIDATE**. The public deployment gate is closed without exposing the billable transcription route.

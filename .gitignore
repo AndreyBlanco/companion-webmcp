@@ -28,3 +28,6 @@ Thumbs.db
 # local scratch and generated evidence
 tmp/
 artifacts/
+
+# Local Netlify folder
+.netlify

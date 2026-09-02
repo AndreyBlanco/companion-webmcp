@@ -4,7 +4,7 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import { createOpenAITranscriber } from '../providers/openai-transcription.js';
-import { createOpenAISemanticExtractor } from '../providers/openai-semantic.js';
+import { createOpenAISemanticBuilder, createOpenAISubjectDetector } from '../providers/openai-semantic.js';
 import { MAX_SEMANTIC_BODY_BYTES, processSemanticRequest } from '../providers/semantic-endpoint.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -35,14 +35,15 @@ async function readTextBody(request, limit) {
 
 export function createDemoServer({
   transcribe = createOpenAITranscriber({ apiKey: process.env.OPENAI_API_KEY }),
-  semanticExtract = async (input) => createOpenAISemanticExtractor({ apiKey: process.env.OPENAI_API_KEY, model: process.env.COMPANION_SEMANTIC_MODEL || 'gpt-5-mini' })(input),
+  detectSubject = async (input) => createOpenAISubjectDetector({ apiKey: process.env.OPENAI_API_KEY, model: process.env.COMPANION_SEMANTIC_MODEL || 'gpt-5-mini' })(input),
+  buildSemantics = async (input) => createOpenAISemanticBuilder({ apiKey: process.env.OPENAI_API_KEY, model: process.env.COMPANION_SEMANTIC_MODEL || 'gpt-5-mini' })(input),
   demoAccessCode = process.env.COMPANION_DEMO_ACCESS_CODE
 } = {}) {
   return createServer(async (request, response) => {
   if (request.url === '/api/semantic-extract') {
     let result;
     try {
-      result = await processSemanticRequest({ method: request.method, headers: request.headers, bodyText: await readTextBody(request, MAX_SEMANTIC_BODY_BYTES), extract: semanticExtract, accessCode: demoAccessCode });
+      result = await processSemanticRequest({ method: request.method, headers: request.headers, bodyText: await readTextBody(request, MAX_SEMANTIC_BODY_BYTES), detectSubject, buildSemantics, accessCode: demoAccessCode });
     } catch (error) {
       result = { status: error.status ?? 400, body: { error: error.message } };
     }

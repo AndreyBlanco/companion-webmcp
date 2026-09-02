@@ -2,41 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSemanticMemory, InMemorySemanticStore, validateSemanticDelta } from '../src/core/semantic-memory.js';
 import { createMemoryTool, registerWebMcp, MEMORY_TOOL_NAME } from '../src/webmcp/register.js';
-import { extractSyntheticDemo, selectSyntheticEvidence } from '../src/adapters/demo/semantic.js';
+import { buildSyntheticSemantics, detectSyntheticSubject, selectSyntheticEvidence } from '../src/adapters/demo/semantic.js';
 
 function harness(overrides = {}) {
   let sequence = 0;
   const store = new InMemorySemanticStore();
-  const capabilities = createSemanticMemory({ store, extract: extractSyntheticDemo, selectEvidence: selectSyntheticEvidence, idFactory: () => `synthetic-${++sequence}`, clock: () => new Date('2026-08-30T18:00:00.000Z'), ...overrides });
+  const capabilities = createSemanticMemory({ store, detectSubject: detectSyntheticSubject, buildSemantics: buildSyntheticSemantics, selectEvidence: selectSyntheticEvidence, idFactory: () => `synthetic-${++sequence}`, clock: () => new Date('2026-08-30T18:00:00.000Z'), ...overrides });
   return { store, capabilities };
 }
 
 async function save(capabilities, rawText) {
-  const draft = await capabilities.interpret({ rawText });
-  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true });
+  const draft = await capabilities.prepare({ rawText });
+  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: rawText, confirmedSubject: draft.subjectResolution.subject });
   return { draft, record };
 }
 
 test('raw fidelity, confirmation boundary, provenance and source linkage are preserved', async () => {
   const { capabilities } = harness(); const rawText = 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.';
-  const draft = await capabilities.interpret({ rawText });
+  const draft = await capabilities.prepare({ rawText });
   await assert.rejects(capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: false }), /Explicit confirmation/);
   assert.deepEqual(await capabilities.getSubjectMemory('hyundai-accent-blue-2013'), []);
-  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true });
+  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: rawText, confirmedSubject: draft.subjectResolution.subject });
   assert.equal(record.rawText, rawText); assert.equal(record.semanticItems[0].provenance, 'observed'); assert.equal(record.semanticItems[0].sourceRecordId, record.recordId);
 });
 
 test('ambiguous subject resolution cannot persist silently', async () => {
-  const { capabilities } = harness(); const draft = await capabilities.interpret({ rawText: 'Ahora revisé otro vehículo.' });
+  const { capabilities } = harness(); const draft = await capabilities.prepare({ rawText: 'Ahora revisé otro vehículo.' });
   assert.equal(draft.subjectResolution.status, 'ambiguous');
-  await assert.rejects(capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true }), /Ambiguous/);
+  await assert.rejects(capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: draft.rawText, confirmedSubject: draft.subjectResolution.subject }), /confirmedSubject/);
 });
 
 test('active subject continuity creates progressive memory and retains speaker inference', async () => {
   const { capabilities } = harness(); await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
   await save(capabilities, 'La batería mide 12.4 voltios con el motor apagado.');
   const { record } = await save(capabilities, 'Creo que la causa parece ser la bobina de encendido.');
-  assert.equal(record.subjectResolution.status, 'probable'); assert.equal(record.semanticItems[0].provenance, 'speaker_inference');
+  assert.equal(record.subjectConfirmation.proposal.status, 'probable'); assert.equal(record.semanticItems[0].provenance, 'speaker_inference');
   assert.equal((await capabilities.getSubjectMemory('hyundai-accent-blue-2013')).length, 3);
 });
 
@@ -66,9 +66,11 @@ test('semantic validation rejects unsupported provenance', () => {
 
 test('semantic validation rejects non-literal evidence and subject mismatch', async () => {
   const base = { subjectResolution: { status: 'resolved', subject: { id: 'subject-a', type: 'thing', label: 'A' }, reason: 'explicit' }, items: [{ id: 'x', kind: 'claim', subject: 'subject-a', predicate: 'p', value: true, provenance: 'reported', evidence: ['literal'] }] };
-  assert.throws(() => validateSemanticDelta({ ...base, items: [{ ...base.items[0], subject: 'subject-b' }] }), /match the resolved subject/);
-  const { capabilities } = harness({ extract: async () => base });
-  await assert.rejects(capabilities.interpret({ rawText: 'different source' }), /exact excerpt/);
+  assert.throws(() => validateSemanticDelta({ ...base, items: [{ ...base.items[0], subject: 'subject-b' }] }), /match the confirmed subject/);
+  const { capabilities } = harness({ detectSubject: async () => base.subjectResolution, buildSemantics: async () => base.items });
+  const draft = await capabilities.prepare({ rawText: 'different source' });
+  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: 'different source', confirmedSubject: base.subjectResolution.subject });
+  assert.equal(record.semanticStatus, 'failed');
 });
 
 test('multiple confirmed entries remain available to deterministic external-agent retrieval', async () => {
@@ -81,9 +83,22 @@ test('multiple confirmed entries remain available to deterministic external-agen
 
 test('session memory can be explicitly cleared without retaining an active subject or draft', async () => {
   const { capabilities } = harness();
-  const pending = await capabilities.interpret({ rawText: 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.' });
+  const pending = await capabilities.prepare({ rawText: 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.' });
   await capabilities.clearMemory();
   assert.equal(capabilities.getActiveSubject(), null);
   assert.deepEqual(await capabilities.getSubjectMemory('hyundai-accent-blue-2013'), []);
-  await assert.rejects(capabilities.confirm({ draftId: pending.draftId, confirmationToken: pending.confirmationToken, confirmed: true }), /invalid/);
+  await assert.rejects(capabilities.confirm({ draftId: pending.draftId, confirmationToken: pending.confirmationToken, confirmed: true, confirmedRawText: pending.rawText, confirmedSubject: pending.subjectResolution.subject }), /invalid/);
+});
+
+test('human-confirmed subject overrides the model proposal before semantic processing', async () => {
+  let semanticInput; const { capabilities } = harness({ buildSemantics: async (input) => { semanticInput = input; return [{ id: 'x', kind: 'claim', subject: input.confirmedSubject.id, predicate: 'status', value: 'ok', unit: null, condition: null, provenance: 'reported', evidence: ['cilindro 2 no tiene chispa'] }]; } });
+  const rawText = 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.'; const draft = await capabilities.prepare({ rawText }); const corrected = { id: 'corrected-device', type: 'device', label: 'Corrected Device' };
+  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: rawText, confirmedSubject: corrected });
+  assert.deepEqual(semanticInput.confirmedSubject, corrected); assert.equal(record.subjectId, corrected.id); assert.equal(record.subjectConfirmation.corrected, true);
+});
+
+test('raw evidence remains saved when semantic processing fails', async () => {
+  const { capabilities } = harness({ buildSemantics: async () => { throw new Error('provider unavailable'); } }); const rawText = 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.'; const draft = await capabilities.prepare({ rawText });
+  const record = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: rawText, confirmedSubject: draft.subjectResolution.subject });
+  assert.equal(record.semanticStatus, 'failed'); assert.equal(record.rawText, rawText); assert.equal((await capabilities.getSubjectMemory(record.subjectId)).length, 1);
 });

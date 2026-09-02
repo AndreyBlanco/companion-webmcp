@@ -18,13 +18,13 @@ Useful context is created as observations, measurements, decisions, hypotheses, 
 
 ## From a human observation to agent evidence
 
-The public demo includes an independently invented Hyundai Accent Blue 2013 diagnostic scenario. A protected server function uses one OpenAI structured-output call to turn each natural-language entry into a reviewable semantic draft.
+The public demo starts empty and accepts new synthetic observations. One protected OpenAI structured-output call proposes only the subject. The person reviews or corrects the text and subject; after confirmation, Companion saves that evidence first and a second bounded call builds its semantic items.
 
 **Positive control**
 
 1. A person enters a new observation in unrestricted natural language.
-2. Companion resolves the subject and proposes an `observed` claim: `spark_status = absent`.
-3. Nothing persists until the person reviews and explicitly confirms the draft.
+2. Companion proposes only the subject; the person approves or corrects both subject and text.
+3. On confirmation, Companion saves the source first and then builds semantic items under the human-confirmed subject.
 4. `query_companion_memory` receives `¿Qué evidencia apunta específicamente al cilindro 2?`.
 5. Companion returns the confirmed source record and its linked semantic evidence. The calling agent—not Companion or WebMCP—decides what conclusion the evidence supports.
 
@@ -56,14 +56,14 @@ WebMCP does not create semantic memory, perform retrieval, or reason over the re
 
 ```mermaid
 flowchart LR
-    H[Human context] --> R[Subject resolution]
+    H[Human context] --> R[Subject proposal]
     subgraph C[Companion]
-      R --> S[Semantic representation]
+      R --> X[Human confirms or corrects<br/>text + subject]
+      X --> M[Source persistence]
+      M --> S[Semantic representation]
       S --> P[Provenance and source linkage]
-      P --> X[Explicit human confirmation]
-      X --> M[Persistence and subject lookup]
     end
-    M -->|confirmed evidence| W[WebMCP<br/>discovery and invocation]
+    P -->|confirmed evidence| W[WebMCP<br/>discovery and invocation]
     W -->|query_companion_memory payload<br/>no answer field| A[Agent<br/>synthesis, reasoning, uncertainty]
 ```
 
@@ -74,7 +74,7 @@ The application and WebMCP registration share the same `queryMemory` capability.
 - **Raw evidence:** the exact confirmed `rawText` remains the primary evidence.
 - **Provenance:** semantic items distinguish `observed`, `measured`, `reported`, `speaker_inference`, and `system_inference`.
 - **Traceability:** every persisted semantic item carries the `sourceRecordId` of its confirmed record.
-- **Confirmation:** interpretation creates a draft; persistence requires a separate confirmation action and token. Ambiguous subject resolution cannot persist.
+- **Confirmation:** subject detection creates a draft; persistence requires separate human confirmation of editable text and subject. Graph construction cannot silently replace that confirmed subject.
 - **Honest absence:** Companion reports whether subject memory is empty; the external agent determines whether returned evidence answers its question.
 
 Human confirmation means the human confirmed the representation. It does not establish that the underlying statement is objectively true.
@@ -187,7 +187,7 @@ npm run build
 npm run demo
 ```
 
-Copy `.env.example` to an ignored `.env` or set its variables in the process environment. Open `http://127.0.0.1:4173`, enter the demo access code, and write new synthetic observations of your choice. The public UI has no examples, subjects, questions or records preloaded. Review and confirm each draft, then ask an agent in a compatible browser to invoke `query_companion_memory`. The application flow remains usable when WebMCP is unavailable.
+Copy `.env.example` to an ignored `.env` or set its variables in the process environment. Open `http://127.0.0.1:4173`, enter the demo access code, and write new synthetic observations of up to 1,000 characters. The public UI has no examples, subjects, questions or records preloaded. Review or correct the proposed subject and text, confirm them, and wait while the semantic graph is built. Then ask an agent in a compatible browser to invoke `query_companion_memory`. The application flow remains usable when WebMCP is unavailable.
 
 The same protected flow is intended for the [public demo](https://companion-webmcp-challenge.netlify.app). Judges receive the access code through the private credentials field in Devpost.
 

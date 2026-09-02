@@ -13,6 +13,9 @@ export async function extractSyntheticDemo({ rawText, activeSubject }) {
   return { subjectResolution: { status: explicit ? 'resolved' : 'probable', subject: HYUNDAI, reason: explicit ? 'The subject is explicitly named.' : 'The entry is compatible with the active synthetic subject.' }, items };
 }
 
+export async function detectSyntheticSubject(input) { return (await extractSyntheticDemo(input)).subjectResolution; }
+export async function buildSyntheticSemantics({ rawText, confirmedSubject }) { const delta = await extractSyntheticDemo({ rawText, activeSubject: confirmedSubject }); return delta.items.map((entry) => ({ ...entry, subject: confirmedSubject.id })); }
+
 export async function selectSyntheticEvidence({ question, records, evidenceTypes }) {
   const query = normalized(question); const asksCompression = query.includes('compresión') || query.includes('compresion');
   const predicates = asksCompression ? [] : [...(query.includes('cilindro 2') || query.includes('chispa') ? ['spark_status'] : []), ...(query.includes('causa') || query.includes('bobina') ? ['probable_cause', 'spark_status'] : []), ...(query.includes('volt') || query.includes('batería') || query.includes('bateria') ? ['battery_voltage'] : [])];

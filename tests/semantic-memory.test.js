@@ -43,14 +43,14 @@ test('active subject continuity creates progressive memory and retains speaker i
 test('retrieval isolates subject before selecting positive evidence', async () => {
   const { capabilities } = harness(); const { record } = await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
   const positive = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué evidencia apunta específicamente al cilindro 2?' });
-  assert.deepEqual(positive.retrievalMetadata.recordsSelected, [record.recordId]);
+  assert.deepEqual(positive.retrievalMetadata.recordsReturned, [record.recordId]);
   assert.deepEqual((await capabilities.queryMemory({ subjectId: 'other-subject', question: 'cilindro 2' })).retrievalMetadata.recordsConsidered, []);
 });
 
-test('negative retrieval reports insufficient evidence without fabrication', async () => {
+test('negative retrieval leaves sufficiency to the external agent without fabrication', async () => {
   const { capabilities } = harness(); await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
   const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué resultado tuvo la prueba de compresión de los cilindros?' });
-  assert.equal(payload.retrievalMetadata.insufficientEvidence, true); assert.deepEqual(payload.records, []); assert.equal('answer' in payload, false);
+  assert.equal(payload.retrievalMetadata.subjectMemoryEmpty, true); assert.equal(payload.retrievalMetadata.sufficiencyAssessment, 'external_agent'); assert.deepEqual(payload.records, []); assert.equal('answer' in payload, false);
 });
 
 test('WebMCP registers the same internal capability and never adds an answer', async () => {
@@ -76,5 +76,5 @@ test('multiple confirmed entries remain available to deterministic external-agen
   await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
   await save(capabilities, 'La batería mide 12.4 voltios con el motor apagado.');
   const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué sabemos?' });
-  assert.equal(payload.records.length, 2); assert.equal(payload.retrievalMetadata.insufficientEvidence, false); assert.equal('answer' in payload, false);
+  assert.equal(payload.records.length, 2); assert.equal(payload.retrievalMetadata.subjectMemoryEmpty, false); assert.equal(payload.retrievalMetadata.sufficiencyAssessment, 'external_agent'); assert.equal('answer' in payload, false);
 });

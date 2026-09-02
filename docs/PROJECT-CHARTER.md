@@ -101,7 +101,8 @@ type RetrievalRequest = {
 type GroundedAnswer = {
   answer: string
   evidenceRecordIds: string[]
-  insufficientEvidence: boolean
+  subjectMemoryEmpty: boolean
+  sufficiencyAssessment: "external_agent"
 }
 ```
 
@@ -127,4 +128,3 @@ Human review remains required before persistence and for any decision derived fr
 ## 10. Initial state
 
 This charter authorizes no implementation by itself. Repository creation, initial files, Git initialization and future implementation require separately approved and authorized operations.
-

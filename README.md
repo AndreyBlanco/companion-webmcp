@@ -30,13 +30,14 @@ The public demo includes an independently invented Hyundai Accent Blue 2013 diag
 
 **Negative control**
 
-A query for the nonexistent cylinder compression test returns no records and:
+A query for a subject with no confirmed memory returns no records and:
 
 ```json
 {
   "records": [],
   "retrievalMetadata": {
-    "insufficientEvidence": true
+    "subjectMemoryEmpty": true,
+    "sufficiencyAssessment": "external_agent"
   }
 }
 ```
@@ -74,7 +75,7 @@ The application and WebMCP registration share the same `queryMemory` capability.
 - **Provenance:** semantic items distinguish `observed`, `measured`, `reported`, `speaker_inference`, and `system_inference`.
 - **Traceability:** every persisted semantic item carries the `sourceRecordId` of its confirmed record.
 - **Confirmation:** interpretation creates a draft; persistence requires a separate confirmation action and token. Ambiguous subject resolution cannot persist.
-- **Honest absence:** missing evidence remains missing and can produce `insufficientEvidence: true`.
+- **Honest absence:** Companion reports whether subject memory is empty; the external agent determines whether returned evidence answers its question.
 
 Human confirmation means the human confirmed the representation. It does not establish that the underlying statement is objectively true.
 
@@ -115,8 +116,9 @@ A reduced response shape is:
   ],
   "retrievalMetadata": {
     "recordsConsidered": ["..."],
-    "recordsSelected": ["..."],
-    "insufficientEvidence": false
+    "recordsReturned": ["..."],
+    "subjectMemoryEmpty": false,
+    "sufficiencyAssessment": "external_agent"
   }
 }
 ```
@@ -209,7 +211,7 @@ The frozen deterministic RC at `ff3e25590b4ad439c8b8b57bc7d8cba79fbbf004` record
 | WebMCP discovery | PASS — local and public origin |
 | WebMCP invocation | PASS — local and public origin |
 | Positive control | PASS — confirmed cylinder 2 evidence selected |
-| Negative control | PASS — no compression records; `insufficientEvidence: true` |
+| Negative control | PASS — no compression evidence was returned as an answer; the external agent reported the information absent |
 | No fabricated answer | PASS — payload contains no `answer` field |
 
 The detailed commands, deployment checks, isolation audit, and limitations are in [Competition Release Evidence](docs/COMPETITION-RELEASE-EVIDENCE.md). Release evidence is historical evidence for that exact candidate, not a promise about unverified future changes.

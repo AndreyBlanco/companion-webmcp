@@ -71,7 +71,7 @@ export function createSemanticMemory({ store, extract, selectEvidence, idFactory
     const allowed = new Map(recordsConsidered.map((record) => [record.recordId, record]));
     const selectedIds = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id));
     const records = selectedIds.map((id) => allowed.get(id)).map((record) => ({ recordId: record.recordId, rawText: record.rawText, evidence: record.semanticItems.filter((item) => !evidenceTypes || evidenceTypes.includes(item.kind)) })).filter((record) => record.evidence.length > 0);
-    return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsSelected: records.map((record) => record.recordId), insufficientEvidence: records.length === 0 } };
+    return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), subjectMemoryEmpty: records.length === 0, sufficiencyAssessment: 'external_agent' } };
   }
   return Object.freeze({ interpret, confirm, queryMemory, getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
 }

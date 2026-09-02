@@ -33,6 +33,7 @@ Never put these values in the repository, browser code, build output, video, scr
 
 - [x] One controlled live OpenAI extraction — 2026-09-02T05:38:01-06:00; synthetic input; `gpt-5-mini`; resolved output; 2 semantic items; all evidence literal; no secret or provider body recorded.
 - [x] Local in-app-browser smoke — protected synthetic extraction produced a reviewable draft; explicit confirmation stored one entry; `query_companion_memory` was discovered and invoked; the returned payload contained the exact source-linked record and no `answer`.
+- [x] Public judge-view smoke — three confirmed entries were retrieved through `query_companion_memory`; the agent distinguished reported evidence, measurement and speaker inference, and correctly declared the compression-test result absent.
 - [x] `netlify build --offline --debug` — function bundled successfully with NFT; no warnings or fallback; publish directory and redirect resolved from `netlify.toml`.
 - [x] `npm ci` — 1 package audited, 0 vulnerabilities.
 - [x] `npm test` — 22 passed, 0 failed.
@@ -93,3 +94,7 @@ Record one rehearsal and then the candidate take. The final YouTube video must b
 The final submission may claim: dynamic structured extraction, literal evidence validation, human confirmation, progressive session memory, subject-first deterministic retrieval and real WebMCP interoperability.
 
 It must not claim: production readiness, durable/multi-user storage, complete 3C Stage A/Stage B implementation, candidate no-deletion enforcement, or a persistent ExternalInference layer.
+
+### Smoke-test correction
+
+The 2026-09-02 public smoke found that `insufficientEvidence: false` could be misread as question-level sufficiency when it only meant that subject records existed. The candidate contract now reports `subjectMemoryEmpty` and `sufficiencyAssessment: "external_agent"`; Companion does not claim to know whether the evidence answers the question.

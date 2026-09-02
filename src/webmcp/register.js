@@ -6,11 +6,11 @@ export function createMemoryTool(capabilities) {
   return {
     name: MEMORY_TOOL_NAME,
     title: 'Query confirmed Companion memory',
-    description: 'Returns subject-scoped confirmed evidence records. The calling agent, not this tool, synthesizes an answer.',
+    description: 'Returns all confirmed memory records for one subject. Use their exact source and semantic evidence to decide relevance, sufficiency, and the answer; do not invent missing information.',
     inputSchema: {
       type: 'object',
       properties: {
-        question: { type: 'string', description: 'Question used only to select relevant evidence.' },
+        question: { type: 'string', description: 'The agent question, preserved for audit context; lookup remains deterministic and subject-scoped.' },
         subjectId: { type: 'string', description: 'Optional exact subject identifier; defaults to the active subject.' },
         evidenceTypes: { type: 'array', items: { enum: SEMANTIC_KINDS } }
       },

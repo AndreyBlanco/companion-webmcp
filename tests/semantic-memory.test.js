@@ -63,3 +63,18 @@ test('WebMCP registers the same internal capability and never adds an answer', a
 test('semantic validation rejects unsupported provenance', () => {
   assert.throws(() => validateSemanticDelta({ subjectResolution: { status: 'resolved', subject: { id: 'x', type: 'thing', label: 'X' }, reason: 'explicit' }, items: [{ id: 'x', kind: 'claim', subject: 'x', predicate: 'p', value: true, provenance: 'fact', evidence: ['x'] }] }), /provenance/);
 });
+
+test('semantic validation rejects non-literal evidence and subject mismatch', async () => {
+  const base = { subjectResolution: { status: 'resolved', subject: { id: 'subject-a', type: 'thing', label: 'A' }, reason: 'explicit' }, items: [{ id: 'x', kind: 'claim', subject: 'subject-a', predicate: 'p', value: true, provenance: 'reported', evidence: ['literal'] }] };
+  assert.throws(() => validateSemanticDelta({ ...base, items: [{ ...base.items[0], subject: 'subject-b' }] }), /match the resolved subject/);
+  const { capabilities } = harness({ extract: async () => base });
+  await assert.rejects(capabilities.interpret({ rawText: 'different source' }), /exact excerpt/);
+});
+
+test('multiple confirmed entries remain available to deterministic external-agent retrieval', async () => {
+  const { capabilities } = harness({ selectEvidence: async ({ records }) => ({ recordIds: records.map((record) => record.recordId) }) });
+  await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
+  await save(capabilities, 'La batería mide 12.4 voltios con el motor apagado.');
+  const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué sabemos?' });
+  assert.equal(payload.records.length, 2); assert.equal(payload.retrievalMetadata.insufficientEvidence, false); assert.equal('answer' in payload, false);
+});

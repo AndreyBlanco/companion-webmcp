@@ -3,12 +3,23 @@ import assert from 'node:assert/strict';
 import { createDemoServer } from '../src/app/server.js';
 import { createOpenAITranscriber } from '../src/providers/openai-transcription.js';
 
-test('demo server loads the Release Candidate and remains available after 404', async (t) => {
+test('demo server loads Companion and remains available after 404', async (t) => {
   const server = createDemoServer();
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   t.after(() => server.close()); const { port } = server.address();
   assert.equal((await fetch(`http://127.0.0.1:${port}/favicon.ico`)).status, 404);
-  const page = await fetch(`http://127.0.0.1:${port}/`); assert.equal(page.status, 200); assert.match(await page.text(), /Release Candidate/);
+  const page = await fetch(`http://127.0.0.1:${port}/`); assert.equal(page.status, 200); assert.match(await page.text(), /memoria humana para agentes/);
+});
+
+test('local semantic endpoint enforces the demo code and returns injected structured output', async (t) => {
+  const calls = []; const delta = { subjectResolution: { status: 'ambiguous', subject: null, reason: 'Synthetic ambiguity.' }, items: [] };
+  const server = createDemoServer({ demoAccessCode: 'judge-code', semanticExtract: async (input) => { calls.push(input); return delta; } });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  t.after(() => server.close()); const { port } = server.address();
+  const denied = await fetch(`http://127.0.0.1:${port}/api/semantic-extract`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-companion-demo-code': 'wrong' }, body: JSON.stringify({ rawText: 'Synthetic input.' }) });
+  assert.equal(denied.status, 401); assert.equal(calls.length, 0);
+  const accepted = await fetch(`http://127.0.0.1:${port}/api/semantic-extract`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-companion-demo-code': 'judge-code' }, body: JSON.stringify({ rawText: 'Synthetic input.' }) });
+  assert.equal(accepted.status, 200); assert.deepEqual(await accepted.json(), delta); assert.equal(calls[0].rawText, 'Synthetic input.');
 });
 
 test('audio provider sends one multipart file to gpt-transcribe', async () => {

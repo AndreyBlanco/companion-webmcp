@@ -4,6 +4,8 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import { createOpenAITranscriber } from '../providers/openai-transcription.js';
+import { createOpenAISemanticExtractor } from '../providers/openai-semantic.js';
+import { MAX_SEMANTIC_BODY_BYTES, processSemanticRequest } from '../providers/semantic-endpoint.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
@@ -20,8 +22,33 @@ async function readBody(request) {
   return Buffer.concat(chunks);
 }
 
-export function createDemoServer({ transcribe = createOpenAITranscriber({ apiKey: process.env.OPENAI_API_KEY }) } = {}) {
+async function readTextBody(request, limit) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of request) {
+    total += chunk.length;
+    if (total > limit) { const error = new Error('Request is too large.'); error.status = 413; throw error; }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+export function createDemoServer({
+  transcribe = createOpenAITranscriber({ apiKey: process.env.OPENAI_API_KEY }),
+  semanticExtract = async (input) => createOpenAISemanticExtractor({ apiKey: process.env.OPENAI_API_KEY, model: process.env.COMPANION_SEMANTIC_MODEL || 'gpt-5-mini' })(input),
+  demoAccessCode = process.env.COMPANION_DEMO_ACCESS_CODE
+} = {}) {
   return createServer(async (request, response) => {
+  if (request.url === '/api/semantic-extract') {
+    let result;
+    try {
+      result = await processSemanticRequest({ method: request.method, headers: request.headers, bodyText: await readTextBody(request, MAX_SEMANTIC_BODY_BYTES), extract: semanticExtract, accessCode: demoAccessCode });
+    } catch (error) {
+      result = { status: error.status ?? 400, body: { error: error.message } };
+    }
+    response.writeHead(result.status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(JSON.stringify(result.body));
+    return;
+  }
   if (request.method === 'POST' && request.url === '/api/transcribe') {
     try {
       const contentType = request.headers['content-type'] || 'application/octet-stream';

@@ -1,0 +1,6 @@
+{
+  "synthetic": true,
+  "source": "Created specifically for Companion Semantic Graph Lab B v0.1.1",
+  "subjectId": "vehicle_hyundai_accent_blue_2013",
+  "recordsModule": "../../src/lab-b/fixtures.js"
+}

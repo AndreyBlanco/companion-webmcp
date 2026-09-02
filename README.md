@@ -1,89 +1,237 @@
-# Companion WebMCP
+# Companion
 
-Companion WebMCP is a public-by-design experiment for turning a short natural-language capture into confirmed, retrievable memory that can also be exposed meaningfully to agents through WebMCP.
+**A human-to-agent memory layer built with WebMCP.**
 
-## Core loop
+Companion turns unstructured human context into confirmed, traceable semantic memory and exposes that memory through WebMCP as evidence that external agents can discover and query. The application owns the trusted memory, WebMCP provides the interoperability layer, and the agent owns the final reasoning.
 
-```text
-capture → structure → confirm → remember → retrieve → collaborate
+**Human context → Confirmed memory → WebMCP → Agent reasoning**
+
+[Live demo](https://companion-webmcp-challenge.netlify.app) · [Source](https://github.com/AndreyBlanco/companion-webmcp) · [Architecture experiment](docs/experiments/ADAPTIVE-SEMANTIC-MEMORY-EXPERIMENT.md) · [Release evidence](docs/COMPETITION-RELEASE-EVIDENCE.md) · [Run it yourself](#run-it-yourself)
+
+This is an OpenAI WebMCP Challenge submission. All records in the repository and demo are synthetic.
+
+## Human context disappears
+
+Useful context is created as observations, measurements, decisions, hypotheses, events, and relationships. Much of it remains spoken, unstructured, isolated in notes, or trapped inside applications. Companion tests a precise boundary: preserve human-confirmed context as source-traceable evidence, then let agents retrieve that evidence without asking the memory system to invent the answer.
+
+“Trusted” here means human-confirmed and source-traceable—not objectively true. **The app owns the evidence. The agent owns the reasoning.**
+
+## From a human observation to agent evidence
+
+The public demo includes an independently invented Hyundai Accent Blue 2013 diagnostic scenario. A protected server function uses one OpenAI structured-output call to turn each natural-language entry into a reviewable semantic draft.
+
+**Positive control**
+
+1. A person enters: `Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.`
+2. Companion resolves the subject and proposes an `observed` claim: `spark_status = absent`.
+3. Nothing persists until the person reviews and explicitly confirms the draft.
+4. `query_companion_memory` receives `¿Qué evidencia apunta específicamente al cilindro 2?`.
+5. Companion returns the confirmed source record and its linked semantic evidence. The calling agent—not Companion or WebMCP—decides what conclusion the evidence supports.
+
+**Negative control**
+
+A query for the nonexistent cylinder compression test returns no records and:
+
+```json
+{
+  "records": [],
+  "retrievalMetadata": {
+    "insufficientEvidence": true
+  }
+}
 ```
 
-The project focuses on four questions:
+There is no invented test result and no generated `answer` field.
 
-1. Does structured memory preserve the user’s meaning?
-2. Is capture substantially lower-friction than manual entry?
-3. Can a real application capability be exposed through WebMCP without duplicated logic?
-4. Can the repository be published, built, tested and demonstrated without any private host?
+## Why WebMCP is the right boundary
 
-## Public boundary
+Companion could expose the same capability through a custom API. WebMCP matters because it gives compatible agents a discoverable, invocable application capability without coupling the memory system to one agent runtime.
 
-This repository contains generic contracts, a generic Companion core, a synthetic demo adapter, synthetic fixtures, tests and public documentation.
+**Companion owns the evidence. WebMCP exposes the capability. The agent owns the reasoning.**
 
-Private host adapters, domain rules, production prompts, schemas, data and integrations belong in their respective private repositories and are not part of this project.
+WebMCP does not create semantic memory, perform retrieval, or reason over the result. It carries arguments to the application-owned capability and returns its evidence payload.
 
-## Data
+## Architecture: the app owns evidence, the agent owns reasoning
 
-All examples and fixtures are synthetic. Do not submit real, deidentified or production-derived personal information.
-
-## Status
-
-Dependency-free Release Candidate: natural text, additive semantic extraction, explicit confirmation, in-memory subject-scoped evidence retrieval, and WebMCP reuse the same capabilities.
-
-## Planned structure
-
-```text
-src/
-  contracts/
-  core/
-  providers/
-  adapters/demo/
-  webmcp/
-  app/
-tests/
-fixtures/synthetic/
-docs/
+```mermaid
+flowchart LR
+    H[Human context] --> R[Subject resolution]
+    subgraph C[Companion]
+      R --> S[Semantic representation]
+      S --> P[Provenance and source linkage]
+      P --> X[Explicit human confirmation]
+      X --> M[Persistence and subject lookup]
+    end
+    M -->|confirmed evidence| W[WebMCP<br/>discovery and invocation]
+    W -->|query_companion_memory payload<br/>no answer field| A[Agent<br/>synthesis, reasoning, uncertainty]
 ```
 
-## Hard gates
+The application and WebMCP registration share the same `queryMemory` capability. Retrieval loads confirmed records only for the requested subject and returns them deterministically. The calling agent evaluates relevance and sufficiency. Semantic extraction uses a protected server-side OpenAI call; the browser never receives the provider key.
 
-- HG-01: Fidelity
-- HG-02: Low friction
-- HG-03: WebMCP viability
-- HG-04: Publishable isolation
+## What makes the memory trustworthy?
 
-See `docs/HARD-GATES.md` for acceptance criteria.
+- **Raw evidence:** the exact confirmed `rawText` remains the primary evidence.
+- **Provenance:** semantic items distinguish `observed`, `measured`, `reported`, `speaker_inference`, and `system_inference`.
+- **Traceability:** every persisted semantic item carries the `sourceRecordId` of its confirmed record.
+- **Confirmation:** interpretation creates a draft; persistence requires a separate confirmation action and token. Ambiguous subject resolution cannot persist.
+- **Honest absence:** missing evidence remains missing and can produce `insufficientEvidence: true`.
 
-## Development
+Human confirmation means the human confirmed the representation. It does not establish that the underlying statement is objectively true.
 
-Requires Node.js 24 or newer. There are no third-party runtime or development dependencies.
+## The WebMCP tool
+
+[`query_companion_memory`](src/webmcp/register.js) is read-only and accepts this input:
+
+```json
+{
+  "question": "What evidence is relevant?",
+  "subjectId": "optional-exact-subject-id",
+  "evidenceTypes": ["entity", "claim", "measurement", "event", "relationship", "hypothesis"]
+}
+```
+
+Only `question` is required. Without `subjectId`, the core uses the active subject. `evidenceTypes` optionally filters semantic kinds.
+
+A reduced response shape is:
+
+```json
+{
+  "subjectId": "hyundai-accent-blue-2013",
+  "question": "...",
+  "records": [
+    {
+      "recordId": "...",
+      "rawText": "...",
+      "evidence": [
+        {
+          "kind": "claim",
+          "predicate": "spark_status",
+          "value": "absent",
+          "provenance": "observed",
+          "sourceRecordId": "..."
+        }
+      ]
+    }
+  ],
+  "retrievalMetadata": {
+    "recordsConsidered": ["..."],
+    "recordsSelected": ["..."],
+    "insufficientEvidence": false
+  }
+}
+```
+
+There is intentionally no `answer` field. The payload is evidence for the calling agent to interpret.
+
+## We tried to break it
+
+The sanitized experiment record is intentionally smaller than the laboratory that produced it. It preserves the claims that can be audited publicly:
+
+| Test dimension | Result | Public evidence |
+|---|---|---|
+| Exact source retention, provenance, and source linkage | PASS | [Core tests](tests/semantic-memory.test.js) |
+| Explicit confirmation; ambiguous subjects cannot persist | PASS | [Core tests](tests/semantic-memory.test.js) |
+| Active-subject continuity and progressive memory | PASS | [Core tests](tests/semantic-memory.test.js) |
+| Subject-first retrieval | PASS | [Core tests](tests/semantic-memory.test.js) |
+| Protected dynamic semantic endpoint | PASS, local | [Endpoint tests](tests/semantic-endpoint.test.js) |
+| Missing-evidence negative control | PASS | [Core tests](tests/semantic-memory.test.js) |
+| Browser WebMCP discovery and invocation | PASS, local and public RC | [Release evidence](docs/COMPETITION-RELEASE-EVIDENCE.md) |
+| Deterministic subject lookup for external-agent reasoning | PASS | [Core tests](tests/semantic-memory.test.js) |
+
+Earlier synthetic experiments showed that lexical search could miss paraphrases and select irrelevant records that shared words. The adaptive semantic-memory experiment then demonstrated additive, source-linked semantic deltas from natural text, active-subject continuity, explicit ambiguity, provenance preservation, subject-first filtering, positive selection, and an honest negative result. The preserved release verdict is **GO — Competition Release Candidate**, with the limitations below.
+
+See the [adaptive semantic memory experiment](docs/experiments/ADAPTIVE-SEMANTIC-MEMORY-EXPERIMENT.md), [reliability experiments](docs/experiments/RELIABILITY-EXPERIMENTS.md), and [semantic architecture freeze](docs/experiments/SEMANTIC-ARCHITECTURE-FREEZE.md).
+
+## Architecture experiment vs. public competition demo
+
+| | Architecture experiment | Public competition demo |
+|---|---|---|
+| Input path | Unstructured natural language | Deterministic synthetic scenario |
+| Semantic representation | Model-generated structured semantic graph | Protected model-generated semantic delta |
+| Memory contract | Additive, source-linked, confirmed | The same frozen contract |
+| WebMCP boundary | Evidence returned for agent reasoning | The same `query_companion_memory` boundary |
+| Purpose | Test richer graph and retrieval protocols | Demonstrate the confirmed memory and WebMCP collaboration loop |
+
+The public path supports dynamic semantic extraction through one OpenAI provider. Strict schema validation, exact source excerpts, explicit review, and confirmation bound the result. It remains an experimental demo rather than a production extraction service.
+
+## What we learned
+
+The work progressed through failures: structured observations exposed the limits of lexical retrieval; semantic extraction enabled additive memory; ambiguous references required explicit subject resolution; and external browser validation established real WebMCP discovery and invocation. The final demo sends the subject's small confirmed memory to the calling agent instead of pretending that Companion knows what the agent needs. Each correction stayed generic rather than introducing an automotive-specific core schema.
+
+## Known limitations
+
+- Semantic completeness can vary in the model-driven architecture experiment.
+- Subject lookup returns every confirmed record for the requested subject; this is intentionally simple and may transfer evidence the agent does not need.
+- Model-generated semantic drafts can be incomplete or require human correction; only synthetic inputs are authorized for the public demo.
+- Public demo memory is browser-session-local and resets on reload.
+- The semantic endpoint is billable and protected by a judge access code. It has no user accounts or production authorization.
+- Domain-neutral modeling is supported by one synthetic automotive diagnostic experiment, not validated across arbitrary domains.
+
+## Where could this pattern go?
+
+The same boundary could be tested for a teacher preserving context about a student, a mechanic about a vehicle, a technician about a machine, a salesperson about a client, or a researcher about an experiment. These are possible applications of the pattern, not validated domains or production claims.
+
+## Run it yourself
+
+Requirements: Node.js 24 or newer. There are no npm package dependencies.
 
 ```sh
+git clone https://github.com/AndreyBlanco/companion-webmcp.git
+cd companion-webmcp
+npm ci
 npm test
 npm run check
 npm run build
 npm run demo
 ```
 
-Open `http://127.0.0.1:4173`. The deterministic synthetic Hyundai demo uses memory only and resets when the page reloads. A browser with the emerging `document.modelContext` API discovers `query_companion_memory`; other browsers retain the complete application flow. The tool returns confirmed evidence and intentionally has no generated `answer` field.
+Copy `.env.example` to an ignored `.env` or set its variables in the process environment. Open `http://127.0.0.1:4173`, enter the demo access code, and use the three provided Hyundai entries in order. Review and confirm each draft, then ask an agent in a compatible browser to invoke `query_companion_memory`. The application flow remains usable when WebMCP is unavailable.
 
-### Optional synthetic audio validation
+The same protected flow is intended for the [public demo](https://companion-webmcp-challenge.netlify.app). Judges receive the access code through the private credentials field in Devpost.
 
-The retained `/api/transcribe` endpoint uses OpenAI's `gpt-transcribe` file endpoint. Set `OPENAI_API_KEY` in the server process environment; never put it in this repository or browser code. It accepts at most 10 MiB and does not save audio, but audio is sent to OpenAI and may consume API credits. The competition UI is reproducible without calling this optional paid route.
+### Optional local audio validation
 
-For the controlled phone test on a trusted local network only:
+The local server retains one optional route that sends audio to OpenAI's `gpt-transcribe` endpoint. Set `OPENAI_API_KEY` in the server environment, run `npm run demo`, and use only synthetic audio. The route accepts at most 10 MiB, does not save audio, may consume API credits, and is not part of the deployed static demo.
 
-```sh
-npm run demo:lan
+`npm run demo:lan` exposes the local server to a trusted LAN for controlled phone testing. Direct microphone capture commonly requires HTTPS away from `localhost`; the file path remains available. Stop the server after the test because the local paid route has no production authentication.
+
+## Reproducibility
+
+The frozen deterministic RC at `ff3e25590b4ad439c8b8b57bc7d8cba79fbbf004` records the historical gates below. They do not certify later dynamic-provider changes, which require a new closure record before submission:
+
+| Gate | Result |
+|---|---|
+| Automated tests | PASS — 10 passed, 0 failed |
+| Syntax check | PASS |
+| Build | PASS |
+| Clean checkout install, test, check, and build | PASS |
+| Public deployment | PASS |
+| WebMCP discovery | PASS — local and public origin |
+| WebMCP invocation | PASS — local and public origin |
+| Positive control | PASS — confirmed cylinder 2 evidence selected |
+| Negative control | PASS — no compression records; `insufficientEvidence: true` |
+| No fabricated answer | PASS — payload contains no `answer` field |
+
+The detailed commands, deployment checks, isolation audit, and limitations are in [Competition Release Evidence](docs/COMPETITION-RELEASE-EVIDENCE.md). Release evidence is historical evidence for that exact candidate, not a promise about unverified future changes.
+
+## Project structure
+
+```text
+src/core/                  confirmation, memory, subject-first retrieval
+src/adapters/remote/       protected semantic endpoint adapter
+src/webmcp/                WebMCP tool contract and registration
+src/app/                   browser UI and local demo server
+src/providers/             OpenAI semantic extraction and optional transcription
+tests/                     architecture, contract, and server gates
+docs/experiments/          sanitized experimental record
+docs/COMPETITION-RELEASE-EVIDENCE.md
+fixtures/synthetic/        synthetic provenance record
 ```
 
-Open one of the printed LAN URLs on the phone. Browser microphone APIs commonly require HTTPS away from `localhost`; use the audio file control to invoke/select a phone recording when direct recording is unavailable. LAN mode exposes the paid transcription endpoint to devices on that network, so stop the server immediately after the test.
+The core contains no automotive-specific schema; the demo adapter owns the scenario-specific behavior. Broader domain-neutral behavior remains experimentally supported, not generally validated. Application and WebMCP paths reuse the same internal capabilities.
 
-The public demo adapter recognizes only the documented synthetic scenario. The core stays domain-neutral: it preserves exact source text, leaves missing information absent, distinguishes provenance, blocks ambiguous subjects, and requires a separate confirmation action before persistence.
+## Challenge and license
 
-## Security and provenance
+Companion is an OpenAI WebMCP Challenge submission. No challenge URL is included because the repository does not contain a verified canonical destination.
 
-Never commit secrets. Record the purpose, source and license of each direct dependency and any third-party asset. See `docs/PROVENANCE.md`.
-
-## License
-
-This repository is licensed under the MIT License. See `LICENSE`.
+Licensed under the [MIT License](LICENSE). Copyright © 2026 Andrey Blanco.

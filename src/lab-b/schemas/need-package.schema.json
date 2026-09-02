@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"companion://lab-b/0.1.1/need-package","type":"object","required":["subjectId","vocabularyVersion","needs"],"properties":{"subjectId":{"type":"string"},"vocabularyVersion":{"type":"integer"},"needs":{"type":"array"},"alreadyCovered":{"type":"array"},"unsupportedNeeds":{"type":"array"}},"additionalProperties":false}

@@ -1,0 +1,5 @@
+{
+  "protocolVersion": "0.1.1",
+  "synthetic": true,
+  "questionsModule": "../../src/lab-b/fixtures.js"
+}

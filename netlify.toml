@@ -1,5 +1,11 @@
 [build]
   publish = "src"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/semantic-extract"
+  to = "/.netlify/functions/semantic-extract"
+  status = 200
 
 [[redirects]]
   from = "/"
@@ -11,3 +17,4 @@
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
+    Cache-Control = "no-store"

@@ -23,6 +23,7 @@ export function validateSemanticDelta(delta) {
     requiredString(resolution.subject?.id, 'subject.id'); requiredString(resolution.subject?.type, 'subject.type'); requiredString(resolution.subject?.label, 'subject.label');
   }
   if (!Array.isArray(delta.items)) throw new TypeError('items must be an array');
+  if (resolution.status === 'ambiguous' && (resolution.subject !== null || delta.items.length > 0)) throw new TypeError('ambiguous resolution cannot contain a subject or semantic items');
   for (const [index, item] of delta.items.entries()) {
     if (!SEMANTIC_KINDS.includes(item.kind)) throw new TypeError(`items[${index}].kind is invalid`);
     requiredString(item.id, `items[${index}].id`); requiredString(item.subject, `items[${index}].subject`); requiredString(item.predicate, `items[${index}].predicate`);
@@ -30,6 +31,7 @@ export function validateSemanticDelta(delta) {
     if (item.value === undefined || item.value === null || item.value === '') throw new TypeError(`items[${index}].value is required`);
     if (!Array.isArray(item.evidence) || item.evidence.length === 0) throw new TypeError(`items[${index}].evidence is required`);
     for (const excerpt of item.evidence) requiredString(excerpt, `items[${index}].evidence excerpt`);
+    if (resolution.subject && item.subject !== resolution.subject.id) throw new TypeError(`items[${index}].subject must match the resolved subject`);
   }
   return delta;
 }
@@ -46,6 +48,9 @@ export function createSemanticMemory({ store, extract, selectEvidence, idFactory
   async function interpret({ rawText, capturedAt = clock().toISOString() }) {
     requiredString(rawText, 'rawText');
     const delta = validateSemanticDelta(await extract({ rawText, capturedAt, activeSubject, existingSubjects: await store.subjects() }));
+    for (const [index, item] of delta.items.entries()) {
+      for (const excerpt of item.evidence) if (!rawText.includes(excerpt)) throw new TypeError(`items[${index}].evidence must be an exact excerpt of rawText`);
+    }
     const draft = { draftId: idFactory(), confirmationToken: idFactory(), rawText, capturedAt, activeSubjectBefore: activeSubject ? structuredClone(activeSubject) : null, subjectResolution: structuredClone(delta.subjectResolution), semanticDelta: structuredClone(delta.items) };
     drafts.set(draft.draftId, draft); return structuredClone(draft);
   }

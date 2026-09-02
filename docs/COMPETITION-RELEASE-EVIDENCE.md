@@ -2,7 +2,7 @@
 
 ## Starting state
 
-- Main repository: `F:\kata\companion-webmcp` (recorded here only as the operator-selected repository, never used by runtime code).
+- Main repository: operator-selected public repository checkout; no runtime code depends on its local path.
 - Starting branch: `main`.
 - Baseline commit: `76368ef47af8da5360b482629d5f0432f9611dff`.
 - Starting tree: clean; no tracked or untracked changes.

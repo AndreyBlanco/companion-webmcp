@@ -37,13 +37,14 @@ export class InMemorySemanticStore {
   #subjects = new Map(); #records = [];
   async save({ subject, record }) { this.#subjects.set(subject.id, structuredClone(subject)); this.#records.push(structuredClone(record)); return structuredClone(record); }
   async update(recordId, changes) { const index = this.#records.findIndex((record) => record.recordId === recordId); if (index < 0) throw new Error('Record not found'); this.#records[index] = { ...this.#records[index], ...structuredClone(changes) }; return structuredClone(this.#records[index]); }
+  async byId(recordId) { const record = this.#records.find((candidate) => candidate.recordId === recordId); return record ? structuredClone(record) : null; }
   async subjects() { return [...this.#subjects.values()].map((subject) => structuredClone(subject)); }
   async bySubject(subjectId) { return this.#records.filter((record) => record.subjectId === subjectId).map((record) => structuredClone(record)); }
   async clear() { this.#subjects.clear(); this.#records = []; }
 }
 
 export function createSemanticMemory({ store, detectSubject, buildSemantics, selectEvidence, idFactory, clock = () => new Date() }) {
-  const drafts = new Map(); let activeSubject = null;
+  const drafts = new Map(); const processing = new Map(); let activeSubject = null; let sessionVersion = 0;
   async function prepare({ rawText, capturedAt = clock().toISOString() }) {
     requiredString(rawText, 'rawText');
     const subjectResolution = validateSubjectResolution(await detectSubject({ rawText, activeSubject, existingSubjects: await store.subjects() }));
@@ -55,14 +56,36 @@ export function createSemanticMemory({ store, detectSubject, buildSemantics, sel
     const draft = drafts.get(draftId); if (!draft || draft.confirmationToken !== confirmationToken) throw new Error('Draft or confirmation token is invalid');
     requiredString(confirmedRawText, 'confirmedRawText'); requiredString(confirmedSubject?.id, 'confirmedSubject.id'); requiredString(confirmedSubject?.type, 'confirmedSubject.type'); requiredString(confirmedSubject?.label, 'confirmedSubject.label');
     drafts.delete(draftId); const recordId = idFactory(); const confirmedAt = clock().toISOString();
-    const record = { recordId, subjectId: confirmedSubject.id, rawText: confirmedRawText, capturedAt: draft.capturedAt, confirmedAt, subjectConfirmation: { confirmedBy: 'user', corrected: JSON.stringify(draft.subjectResolution.subject) !== JSON.stringify(confirmedSubject), proposal: draft.subjectResolution }, semanticStatus: 'processing', semanticItems: [] };
-    await store.save({ subject: confirmedSubject, record }); activeSubject = structuredClone(confirmedSubject);
-    try { const items = validateSemanticItems(await buildSemantics({ rawText: confirmedRawText, confirmedSubject }), confirmedSubject, confirmedRawText); return await store.update(recordId, { semanticStatus: 'ready', semanticItems: items.map((item) => ({ ...item, sourceRecordId: recordId })) }); }
-    catch { return await store.update(recordId, { semanticStatus: 'failed', semanticItems: [] }); }
+    const record = { recordId, subjectId: confirmedSubject.id, rawText: confirmedRawText, capturedAt: draft.capturedAt, confirmedAt, subjectConfirmation: { confirmedBy: 'user', corrected: JSON.stringify(draft.subjectResolution.subject) !== JSON.stringify(confirmedSubject), proposal: draft.subjectResolution }, semanticStatus: 'processing', semanticAttempts: 0, semanticItems: [] };
+    record.confirmedSubject = structuredClone(confirmedSubject);
+    await store.save({ subject: confirmedSubject, record }); activeSubject = structuredClone(confirmedSubject); return structuredClone(record);
+  }
+  async function processRecord(recordId, { maxAttempts = 3, onAttempt } = {}) {
+    if (processing.has(recordId)) return processing.get(recordId);
+    const version = sessionVersion;
+    const task = (async () => {
+      const record = await store.byId(recordId); if (!record) throw new Error('Record not found');
+      if (record.semanticStatus === 'ready' || record.semanticStatus === 'failed') return record;
+      const confirmedSubject = record.confirmedSubject;
+      const attemptLimit = Number.isInteger(maxAttempts) ? Math.min(3, Math.max(1, maxAttempts)) : 3;
+      for (let attempt = 1; attempt <= attemptLimit; attempt += 1) {
+        if (version !== sessionVersion) return null;
+        await store.update(recordId, { semanticStatus: 'processing', semanticAttempts: attempt }); onAttempt?.({ recordId, attempt, maxAttempts: attemptLimit });
+        try {
+          const items = validateSemanticItems(await buildSemantics({ rawText: record.rawText, confirmedSubject }), confirmedSubject, record.rawText);
+          if (version !== sessionVersion) return null;
+          return await store.update(recordId, { semanticStatus: 'ready', semanticAttempts: attempt, semanticItems: items.map((item) => ({ ...item, sourceRecordId: recordId })) });
+        } catch {
+          if (attempt === attemptLimit && version === sessionVersion) return store.update(recordId, { semanticStatus: 'failed', semanticAttempts: attempt, semanticItems: [] });
+        }
+      }
+      return null;
+    })().finally(() => processing.delete(recordId));
+    processing.set(recordId, task); return task;
   }
   async function queryMemory({ question, subjectId = activeSubject?.id, evidenceTypes }) {
-    requiredString(question, 'question'); requiredString(subjectId, 'subjectId'); const recordsConsidered = await store.bySubject(subjectId); const selection = await selectEvidence({ question, subjectId, records: recordsConsidered, evidenceTypes }); const allowed = new Map(recordsConsidered.map((record) => [record.recordId, record])); const selectedIds = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id)); const records = selectedIds.map((id) => allowed.get(id)).map((record) => ({ recordId: record.recordId, rawText: record.rawText, evidence: record.semanticItems.filter((item) => !evidenceTypes || evidenceTypes.includes(item.kind)) })).filter((record) => record.evidence.length > 0); return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), subjectMemoryEmpty: records.length === 0, sufficiencyAssessment: 'external_agent' } };
+    requiredString(question, 'question'); requiredString(subjectId, 'subjectId'); const recordsConsidered = await store.bySubject(subjectId); const selection = await selectEvidence({ question, subjectId, records: recordsConsidered, evidenceTypes }); const allowed = new Map(recordsConsidered.map((record) => [record.recordId, record])); const selectedIds = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id)); const records = selectedIds.map((id) => allowed.get(id)).map((record) => ({ recordId: record.recordId, rawText: record.rawText, evidence: record.semanticItems.filter((item) => !evidenceTypes || evidenceTypes.includes(item.kind)) })).filter((record) => record.evidence.length > 0); const recordsUnavailable = recordsConsidered.filter((record) => record.semanticStatus !== 'ready').map((record) => ({ recordId: record.recordId, semanticStatus: record.semanticStatus, semanticAttempts: record.semanticAttempts ?? 0 })); return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), recordsUnavailable, subjectMemoryEmpty: recordsConsidered.length === 0, sufficiencyAssessment: 'external_agent' } };
   }
-  async function clearMemory() { drafts.clear(); activeSubject = null; await store.clear(); }
-  return Object.freeze({ prepare, confirm, queryMemory, clearMemory, getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
+  async function clearMemory() { sessionVersion += 1; drafts.clear(); activeSubject = null; await store.clear(); }
+  return Object.freeze({ prepare, confirm, processRecord, queryMemory, clearMemory, getSubjects: () => store.subjects(), getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
 }

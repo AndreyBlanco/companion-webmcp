@@ -18,4 +18,8 @@ test('public demo starts neutral and exposes an accessible processing state', as
   assert.match(html, /id="confirmed-subject-id"[^>]*required/);
   assert.match(client, /capabilities\.prepare\(/);
   assert.match(client, /confirmedSubject/);
+  assert.match(html, /id="subject-choice"/);
+  assert.match(client, /capabilities\.getSubjects\(\)/);
+  assert.match(client, /capabilities\.processRecord\(/);
+  assert.match(html, /id="background-job-list"/);
 });

@@ -175,6 +175,8 @@ The same boundary could be tested for a teacher preserving context about a stude
 
 ## Run it yourself
 
+The subject review offers existing session subjects before manual editing, preserving their exact identity. Saving returns immediately; graph construction runs asynchronously in the open page, with at most three attempts per record. Only the third unsuccessful attempt marks it `failed`. The source remains saved, and WebMCP reports unfinished records under `retrievalMetadata.recordsUnavailable`. Closing or reloading the page ends this session-only processing; there is no durable background worker.
+
 Requirements: Node.js 24 or newer. There are no npm package dependencies.
 
 ```sh

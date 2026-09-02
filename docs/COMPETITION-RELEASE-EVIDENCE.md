@@ -16,7 +16,7 @@ Promoted as stable concepts and reimplemented cleanly:
 
 - `src/core/semantic-memory.js`: source-linked additive semantic memory, confirmation, subject resolution and subject-first retrieval.
 - `src/webmcp/register.js`: `query_companion_memory`, delegating to the same internal capability and returning no `answer`.
-- `src/adapters/demo/semantic.js`: deterministic synthetic competition adapter and Hyundai scenario.
+- `src/adapters/demo/semantic.js`: deterministic synthetic regression adapter; isolated from the public runtime.
 - `src/app/client.js` and `src/app/index.html`: coherent Hablar → Revisar → Guardar flow.
 - `tests/semantic-memory.test.js`: intentional architecture and contract gates.
 - `docs/experiments/`: sanitized architecture history.

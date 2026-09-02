@@ -78,3 +78,12 @@ test('multiple confirmed entries remain available to deterministic external-agen
   const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué sabemos?' });
   assert.equal(payload.records.length, 2); assert.equal(payload.retrievalMetadata.subjectMemoryEmpty, false); assert.equal(payload.retrievalMetadata.sufficiencyAssessment, 'external_agent'); assert.equal('answer' in payload, false);
 });
+
+test('session memory can be explicitly cleared without retaining an active subject or draft', async () => {
+  const { capabilities } = harness();
+  const pending = await capabilities.interpret({ rawText: 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.' });
+  await capabilities.clearMemory();
+  assert.equal(capabilities.getActiveSubject(), null);
+  assert.deepEqual(await capabilities.getSubjectMemory('hyundai-accent-blue-2013'), []);
+  await assert.rejects(capabilities.confirm({ draftId: pending.draftId, confirmationToken: pending.confirmationToken, confirmed: true }), /invalid/);
+});

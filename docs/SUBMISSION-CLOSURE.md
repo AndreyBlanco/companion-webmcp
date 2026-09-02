@@ -81,7 +81,7 @@ All work in this repository was created during the WebMCP Challenge period. The 
 
 1. **0:00–0:15 — problem.** “Human context disappears between tools and agent conversations. Companion turns confirmed context into reusable evidence.”
 2. **0:15–0:25 — boundary.** Show the live URL and say that Companion owns memory while ChatGPT owns reasoning.
-3. **0:25–1:15 — capture.** Enter the three built-in synthetic Hyundai observations. For each, show the generated draft, source excerpt, explicit confirmation and growing entry count. Hide the access code while typing.
+3. **0:25–1:15 — capture.** Enter three new synthetic observations chosen at demonstration time. Explicitly show that the form, subject and inspection question start empty. For each entry, show the processing indicator, generated draft, source excerpt, explicit confirmation and growing entry count. Hide the access code while typing.
 4. **1:15–1:30 — memory.** Open technical evidence briefly and show source linkage/provenance, not raw provider traces.
 5. **1:30–2:00 — WebMCP.** In ChatGPT's in-app browser ask: “Usa la memoria de Companion para explicar qué evidencia existe sobre el cilindro 2 y qué hipótesis expresó la persona. Distingue hechos observados, mediciones e inferencias del hablante.” Show tool invocation and grounded response.
 6. **2:00–2:20 — negative control.** Ask: “¿Cuál fue el resultado de la prueba de compresión?” Show that no such evidence exists and no value is invented.

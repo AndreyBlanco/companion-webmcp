@@ -22,7 +22,7 @@ The public demo includes an independently invented Hyundai Accent Blue 2013 diag
 
 **Positive control**
 
-1. A person enters: `Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.`
+1. A person enters a new observation in unrestricted natural language.
 2. Companion resolves the subject and proposes an `observed` claim: `spark_status = absent`.
 3. Nothing persists until the person reviews and explicitly confirms the draft.
 4. `query_companion_memory` receives `¿Qué evidencia apunta específicamente al cilindro 2?`.
@@ -187,7 +187,7 @@ npm run build
 npm run demo
 ```
 
-Copy `.env.example` to an ignored `.env` or set its variables in the process environment. Open `http://127.0.0.1:4173`, enter the demo access code, and use the three provided Hyundai entries in order. Review and confirm each draft, then ask an agent in a compatible browser to invoke `query_companion_memory`. The application flow remains usable when WebMCP is unavailable.
+Copy `.env.example` to an ignored `.env` or set its variables in the process environment. Open `http://127.0.0.1:4173`, enter the demo access code, and write new synthetic observations of your choice. The public UI has no examples, subjects, questions or records preloaded. Review and confirm each draft, then ask an agent in a compatible browser to invoke `query_companion_memory`. The application flow remains usable when WebMCP is unavailable.
 
 The same protected flow is intended for the [public demo](https://companion-webmcp-challenge.netlify.app). Judges receive the access code through the private credentials field in Devpost.
 

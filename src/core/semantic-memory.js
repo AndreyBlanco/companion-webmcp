@@ -41,6 +41,7 @@ export class InMemorySemanticStore {
   async save({ subject, record }) { this.#subjects.set(subject.id, structuredClone(subject)); this.#records.push(structuredClone(record)); return structuredClone(record); }
   async subjects() { return [...this.#subjects.values()].map((subject) => structuredClone(subject)); }
   async bySubject(subjectId) { return this.#records.filter((record) => record.subjectId === subjectId).map((record) => structuredClone(record)); }
+  async clear() { this.#subjects.clear(); this.#records = []; }
 }
 
 export function createSemanticMemory({ store, extract, selectEvidence, idFactory, clock = () => new Date() }) {
@@ -73,5 +74,6 @@ export function createSemanticMemory({ store, extract, selectEvidence, idFactory
     const records = selectedIds.map((id) => allowed.get(id)).map((record) => ({ recordId: record.recordId, rawText: record.rawText, evidence: record.semanticItems.filter((item) => !evidenceTypes || evidenceTypes.includes(item.kind)) })).filter((record) => record.evidence.length > 0);
     return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), subjectMemoryEmpty: records.length === 0, sufficiencyAssessment: 'external_agent' } };
   }
-  return Object.freeze({ interpret, confirm, queryMemory, getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
+  async function clearMemory() { drafts.clear(); activeSubject = null; await store.clear(); }
+  return Object.freeze({ interpret, confirm, queryMemory, clearMemory, getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
 }

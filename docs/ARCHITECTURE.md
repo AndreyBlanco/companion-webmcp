@@ -34,7 +34,7 @@ Narrow interfaces for transcription, structured extraction and storage. The init
 
 ### Demo adapter
 
-Maps generic contracts to synthetic subjects and synthetic memories used by tests and the public demonstration.
+Maps generic contracts to synthetic subjects and memories used only by automated tests and preserved experiments. The public application does not import this adapter or preload any scenario.
 
 ### Application
 

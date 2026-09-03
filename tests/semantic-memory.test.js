@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSemanticMemory, InMemorySemanticStore } from '../src/core/semantic-memory.js';
 import { createMemoryTool, registerWebMcp, MEMORY_TOOL_NAME } from '../src/webmcp/register.js';
-import { buildSyntheticSemantics, detectSyntheticSubject, selectSyntheticEvidence } from '../src/adapters/demo/semantic.js';
+import { buildSyntheticSemantics, detectSyntheticSubject } from '../src/adapters/demo/semantic.js';
 
 function harness(overrides = {}) {
   let sequence = 0;
   const store = new InMemorySemanticStore();
-  const capabilities = createSemanticMemory({ store, detectSubject: detectSyntheticSubject, buildSemantics: buildSyntheticSemantics, selectEvidence: selectSyntheticEvidence, idFactory: () => `synthetic-${++sequence}`, clock: () => new Date('2026-08-30T18:00:00.000Z'), ...overrides });
+  const capabilities = createSemanticMemory({ store, detectSubject: detectSyntheticSubject, buildSemantics: buildSyntheticSemantics, idFactory: () => `synthetic-${++sequence}`, clock: () => new Date('2026-08-30T18:00:00.000Z'), ...overrides });
   return { store, capabilities };
 }
 
@@ -42,32 +42,35 @@ test('active subject continuity creates progressive memory and retains speaker i
   assert.equal((await capabilities.getSubjectMemory('hyundai-accent-blue-2013')).length, 3);
 });
 
-test('retrieval isolates subject before selecting positive evidence', async () => {
+test('retrieval isolates subject before exact ID lookup', async () => {
   const { capabilities } = harness(); const { record } = await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
-  const positive = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué evidencia apunta específicamente al cilindro 2?' });
-  assert.deepEqual(positive.retrievalMetadata.recordsReturned, [record.recordId]);
-  assert.deepEqual((await capabilities.queryMemory({ subjectId: 'other-subject', question: 'cilindro 2' })).retrievalMetadata.recordsConsidered, []);
+  const ids = record.semanticGraph.edges.map((edge) => edge.id);
+  const positive = await capabilities.queryMemory({ subjectId: record.subjectId, relevantVocabularyIds: ids });
+  assert.deepEqual(positive.records.map((entry) => entry.recordId), [record.recordId]);
+  const other = await capabilities.queryMemory({ subjectId: 'other-subject', relevantVocabularyIds: ids });
+  assert.deepEqual(other.records, []); assert.deepEqual(other.unknownVocabularyIds, ids);
 });
 
-test('negative retrieval leaves sufficiency to the external agent without fabrication', async () => {
+test('empty external selection returns no evidence or fabricated answer', async () => {
   const { capabilities } = harness(); await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
-  const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué resultado tuvo la prueba de compresión de los cilindros?' });
-  assert.equal(payload.retrievalMetadata.subjectMemoryEmpty, false); assert.equal(payload.retrievalMetadata.sufficiencyAssessment, 'external_agent'); assert.deepEqual(payload.records, []); assert.equal('answer' in payload, false);
+  const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', relevantVocabularyIds: [] });
+  assert.deepEqual(payload.records, []); assert.equal('answer' in payload, false);
 });
 
 test('WebMCP registers the same internal capability and never adds an answer', async () => {
   const { capabilities } = harness(); let registered;
-  const status = await registerWebMcp({ registerTool: async (tool) => { registered = tool; } }, capabilities);
+  const status = await registerWebMcp({ registerTool: async (tool) => { if (tool.name === MEMORY_TOOL_NAME) registered = tool; } }, capabilities);
   assert.equal(status.toolName, MEMORY_TOOL_NAME); assert.equal(registered.execute, capabilities.queryMemory);
-  const payload = await createMemoryTool(capabilities).execute({ subjectId: 'missing', question: 'anything' }); assert.equal('answer' in payload, false);
+  const payload = await createMemoryTool(capabilities).execute({ subjectId: 'missing', relevantVocabularyIds: [] }); assert.equal('answer' in payload, false);
 });
 
-test('multiple confirmed entries remain available to deterministic external-agent retrieval', async () => {
-  const { capabilities } = harness({ selectEvidence: async ({ records }) => ({ recordIds: records.map((record) => record.recordId) }) });
+test('multiple confirmed entries retain their boundaries in explicitly selected retrieval', async () => {
+  const { capabilities } = harness();
   await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
-  await save(capabilities, 'La batería mide 12.4 voltios con el motor apagado.');
-  const payload = await capabilities.queryMemory({ subjectId: 'hyundai-accent-blue-2013', question: '¿Qué sabemos?' });
-  assert.equal(payload.records.length, 2); assert.equal(payload.retrievalMetadata.subjectMemoryEmpty, false); assert.equal(payload.retrievalMetadata.sufficiencyAssessment, 'external_agent'); assert.equal('answer' in payload, false);
+  await save(capabilities, 'La bater�a mide 12.4 voltios con el motor apagado.');
+  const vocabulary = await capabilities.getVocabulary({ subjectId: 'hyundai-accent-blue-2013' });
+  const payload = await capabilities.queryMemory({ subjectId: vocabulary.subjectId, relevantVocabularyIds: vocabulary.items.map((item) => item.id) });
+  assert.equal(payload.records.length, 2); assert.equal('answer' in payload, false);
 });
 
 test('session memory can be explicitly cleared without retaining an active subject or draft', async () => {
@@ -109,7 +112,7 @@ test('background processing retries twice then succeeds without saving duplicate
   assert.equal((await capabilities.getSubjectMemory(pending.subjectId)).length, 1);
 });
 
-test('three failed attempts are final and visible through retrieval metadata', async () => {
+test('three failed attempts are final and absent from factual vocabulary', async () => {
   let calls = 0;
   const { capabilities } = harness({ buildSemantics: async () => { calls += 1; throw new Error('temporary'); } });
   const draft = await capabilities.prepare({ rawText: 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.' });
@@ -117,9 +120,8 @@ test('three failed attempts are final and visible through retrieval metadata', a
   const done = await capabilities.processRecord(pending.recordId, { maxAttempts: 99 });
   await capabilities.processRecord(pending.recordId);
   assert.equal(calls, 3); assert.equal(done.semanticStatus, 'failed');
-  const payload = await capabilities.queryMemory({ question: 'anything' });
-  assert.deepEqual(payload.retrievalMetadata.recordsUnavailable, [{ recordId: pending.recordId, semanticStatus: 'failed', semanticAttempts: 3 }]);
-  assert.equal(payload.retrievalMetadata.subjectMemoryEmpty, false);
+  assert.deepEqual((await capabilities.getVocabulary({ subjectId: pending.subjectId })).items, []);
+  assert.equal((await capabilities.getSubjectMemory(pending.subjectId))[0].semanticStatus, 'failed');
 });
 
 test('clearing a session during processing does not restore erased records', async () => {

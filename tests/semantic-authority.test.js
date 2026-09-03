@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { incorporateSemanticBuild, NODE_TYPES, RELATION_TYPES } from '../src/core/semantic-authority.js';
 import { createSemanticMemory, InMemorySemanticStore } from '../src/core/semantic-memory.js';
-import { selectAllConfirmedEvidence } from '../src/adapters/remote/semantic.js';
 import { createMemoryTool } from '../src/webmcp/register.js';
 import { authorityBuild, authorityRawText, authoritySubject } from '../fixtures/synthetic/semantic-build.js';
 
@@ -12,7 +11,7 @@ function memory(build = ({ recordId, confirmedSubject }) => authorityBuild(recor
   let sequence = 0;
   return createSemanticMemory({ store: new InMemorySemanticStore(), idFactory: () => `record-${++sequence}`,
     detectSubject: async () => ({ status: 'resolved', subject: authoritySubject, reason: 'Synthetic fixture' }),
-    buildSemantics: build, selectEvidence: selectAllConfirmedEvidence });
+    buildSemantics: build });
 }
 async function save(capabilities) {
   const draft = await capabilities.prepare({ rawText: authorityRawText });
@@ -36,14 +35,15 @@ test('AGENT_INFERRED and its exclusive nodes never enter factual persistence or 
   assert.equal(saved.semanticStatus, 'ready');
   assert.equal(saved.semanticGraph.edges.length, 3); assert.equal(saved.semanticGraph.nodes.length, 6);
   assert.equal(saved.semanticAudit.stageB[3].epistemicStatus, 'AGENT_INFERRED');
-  const payload = await createMemoryTool(capabilities).execute({ question: 'What is known?', subjectId: authoritySubject.id });
+  const payload = await createMemoryTool(capabilities).execute({ relevantVocabularyIds: saved.semanticGraph.edges.map((edge) => edge.id), subjectId: authoritySubject.id });
   assert.equal(payload.records.length, 1);
   assert.equal(JSON.stringify(payload).includes('possible electrical fault'), false);
   assert.equal(JSON.stringify(payload).includes('AGENT_INFERRED'), false);
   assert.equal('semanticAudit' in payload.records[0], false);
   assert.equal(payload.records[0].capturedAt, saved.capturedAt);
   assert.equal(payload.records[0].confirmedAt, saved.confirmedAt);
-  assert.equal(payload.records[0].rawText, authorityRawText);
+  assert.equal(saved.rawText, authorityRawText);
+  assert.ok(payload.records[0].evidence.every((edge) => edge.sourceEvidence.every((quote) => quote.recordId === saved.recordId)));
 });
 
 test('duplicate local IDs between Entries become distinct persistent IDs and remapped references', async () => {
@@ -57,10 +57,11 @@ test('duplicate local IDs between Entries become distinct persistent IDs and rem
     assert.ok(entry.semanticGraph.nodes.some((node) => node.id === edge.to));
     assert.equal(edge.sourceEvidence[0].recordId, entry.recordId);
   }
-  const a = await capabilities.queryMemory({ question: 'same', subjectId: authoritySubject.id });
-  const b = await capabilities.queryMemory({ question: 'same', subjectId: authoritySubject.id });
+  const request = { subjectId: authoritySubject.id, relevantVocabularyIds: [first, second].flatMap((record) => record.semanticGraph.edges.map((edge) => edge.id)) };
+  const a = await capabilities.queryMemory(request);
+  const b = await capabilities.queryMemory(request);
   assert.deepEqual(a, b); assert.equal(a.records.length, 2);
-  assert.deepEqual((await capabilities.queryMemory({ question: 'same', subjectId: 'other' })).records, []);
+  assert.deepEqual((await capabilities.queryMemory({ relevantVocabularyIds: request.relevantVocabularyIds, subjectId: 'other' })).records, []);
 });
 
 test('candidate deletion, duplication, replacement and mutation are rejected, even with equal counts', () => {
@@ -121,7 +122,7 @@ test('A/B reconciliation failure cannot incorporate a partial factual graph', as
   assert.equal(saved.semanticStatus, 'failed'); assert.equal(saved.rawText, authorityRawText);
   assert.deepEqual(saved.semanticGraph, { nodes: [], edges: [] });
   assert.ok(saved.semanticErrors.every((error) => error.code === 'CANDIDATE_CORRESPONDENCE_INVALID'));
-  assert.deepEqual((await capabilities.queryMemory({ question: 'known?' })).records, []);
+  assert.deepEqual((await capabilities.queryMemory({ subjectId: authoritySubject.id, relevantVocabularyIds: [] })).records, []);
 });
 
 test('record identity collisions cannot overwrite or merge confirmed Entries', async () => {
@@ -132,20 +133,10 @@ test('record identity collisions cannot overwrite or merge confirmed Entries', a
   assert.equal((await store.bySubject(authoritySubject.id)).length, 1);
 });
 
-test('existing evidenceTypes filter uses v0.1 types and retains resolvable endpoints', async () => {
-  const capabilities = memory(); await save(capabilities);
-  const payload = await capabilities.queryMemory({ question: 'known?', evidenceTypes: ['property'] });
-  for (const edge of payload.records[0].evidence) {
-    assert.ok(payload.records[0].nodes.some((node) => node.id === edge.from));
-    assert.ok(payload.records[0].nodes.some((node) => node.id === edge.to));
-  }
-  await assert.rejects(capabilities.queryMemory({ question: 'known?', evidenceTypes: ['diagnosis'] }), /invalid evidenceTypes/);
-});
-
 test('an expressive limitation is visible without inventing types or factual relations', async () => {
   const capabilities = memory(({ recordId }) => ({ recordId, subjectId: authoritySubject.id, stageA: { nodes: [], candidates: [], limitations: ['No relation representable in this synthetic case.'] }, stageB: [] }));
   const saved = await save(capabilities); assert.equal(saved.semanticStatus, 'ready');
-  const payload = await capabilities.queryMemory({ question: 'What is known?' });
-  assert.deepEqual(payload.records[0].evidence, []);
-  assert.equal(payload.records[0].limitations.length, 1);
+  assert.deepEqual(saved.semanticGraph.edges, []);
+  assert.equal(saved.semanticAudit.stageA.limitations.length, 1);
+  assert.deepEqual((await capabilities.getVocabulary({ subjectId: authoritySubject.id })).items, []);
 });

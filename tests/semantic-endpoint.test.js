@@ -54,14 +54,14 @@ test('active remote/provider/core pipeline validates and routes before incorpora
     const result = await processSemanticRequest({ method: options.method, headers: { 'content-type': 'application/json', 'x-companion-demo-code': options.headers['X-Companion-Demo-Code'] }, bodyText: options.body, accessCode: 'judge-code', detectSubject: async () => resolution, buildSemantics: provider });
     return Response.json(result.body, { status: result.status });
   } };
-  const memory = createSemanticMemory({ store: new InMemorySemanticStore(), idFactory: () => `integration-${++sequence}`, detectSubject: createRemoteSubjectDetector(remote), buildSemantics: createRemoteSemanticBuilder(remote), selectEvidence: selectAllConfirmedEvidence });
+  const memory = createSemanticMemory({ store: new InMemorySemanticStore(), idFactory: () => `integration-${++sequence}`, detectSubject: createRemoteSubjectDetector(remote), buildSemantics: createRemoteSemanticBuilder(remote) });
   const draft = await memory.prepare({ rawText: authorityRawText });
   const pending = await memory.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: authorityRawText, confirmedSubject: subject });
   assert.equal(semanticCalls, 0); assert.equal((await memory.getSubjectMemory(subject.id))[0].rawText, authorityRawText);
   const saved = await memory.processRecord(pending.recordId);
   assert.equal(saved.semanticStatus, 'ready'); assert.equal(semanticCalls, 1);
   assert.equal(saved.semanticAudit.stageA.candidates.length, 4); assert.equal(saved.semanticGraph.edges.length, 3);
-  const payload = await memory.queryMemory({ question: 'known evidence', subjectId: subject.id });
+  const payload = await memory.queryMemory({ relevantVocabularyIds: saved.semanticGraph.edges.map((edge) => edge.id), subjectId: subject.id });
   assert.equal(payload.records[0].evidence.length, 3);
 });
 

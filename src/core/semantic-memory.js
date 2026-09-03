@@ -1,4 +1,5 @@
-import { incorporateSemanticBuild, NODE_TYPES } from './semantic-authority.js';
+import { projectFactualVocabulary, lookupFactualVocabulary } from './semantic-retrieval.js';
+import { incorporateSemanticBuild } from './semantic-authority.js';
 export const RESOLUTION_STATUSES = Object.freeze(['resolved', 'probable', 'ambiguous']);
 function requiredString(value, name) { if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${name} is required`); }
 
@@ -26,7 +27,7 @@ export class InMemorySemanticStore {
   async clear() { this.#subjects.clear(); this.#records = []; }
 }
 
-export function createSemanticMemory({ store, detectSubject, buildSemantics, selectEvidence, idFactory, clock = () => new Date() }) {
+export function createSemanticMemory({ store, detectSubject, buildSemantics, idFactory, clock = () => new Date() }) {
   const drafts = new Map(); const processing = new Map(); let activeSubject = null; let sessionVersion = 0;
   async function prepare({ rawText, capturedAt = clock().toISOString() }) {
     requiredString(rawText, 'rawText');
@@ -72,24 +73,19 @@ export function createSemanticMemory({ store, detectSubject, buildSemantics, sel
     })().finally(() => processing.delete(recordId));
     processing.set(recordId, task); return task;
   }
-  async function queryMemory({ question, subjectId = activeSubject?.id, evidenceTypes }) {
-    requiredString(question, 'question'); requiredString(subjectId, 'subjectId');
-    if (evidenceTypes !== undefined && (!Array.isArray(evidenceTypes) || evidenceTypes.some((type) => !NODE_TYPES.includes(type)))) throw new TypeError('invalid evidenceTypes');
-    const recordsConsidered = await store.bySubject(subjectId);
-    const selection = await selectEvidence({ question, subjectId, records: recordsConsidered, evidenceTypes });
-    const allowed = new Map(recordsConsidered.filter((record) => record.semanticStatus === 'ready').map((record) => [record.recordId, record]));
-    const selectedIds = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id));
-    const records = selectedIds.map((id) => {
-      const record = allowed.get(id);
-      const matchingNodes = new Set(record.semanticGraph.nodes.filter((node) => !evidenceTypes || evidenceTypes.includes(node.type)).map((node) => node.id));
-      const evidence = record.semanticGraph.edges.filter((edge) => matchingNodes.has(edge.from) || matchingNodes.has(edge.to));
-      const endpoints = new Set(evidence.flatMap((edge) => [edge.from, edge.to]));
-      return { recordId: record.recordId, subjectId: record.subjectId, capturedAt: record.capturedAt, confirmedAt: record.confirmedAt, rawText: record.rawText,
-        evidence, nodes: record.semanticGraph.nodes.filter((node) => endpoints.has(node.id)), limitations: record.semanticAudit.stageA.limitations };
-    });
-    const recordsUnavailable = recordsConsidered.filter((record) => record.semanticStatus !== 'ready').map((record) => ({ recordId: record.recordId, semanticStatus: record.semanticStatus, semanticAttempts: record.semanticAttempts ?? 0 }));
-    return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), recordsUnavailable, subjectMemoryEmpty: recordsConsidered.length === 0, sufficiencyAssessment: 'external_agent' } };
+  async function getVocabulary({ subjectId = activeSubject?.id } = {}) {
+    requiredString(subjectId, 'subjectId');
+    const projection = await projectFactualVocabulary(await store.bySubject(subjectId), subjectId);
+    return { subjectId, version: projection.version, items: projection.items };
+  }
+  async function queryMemory(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some((key) => !['subjectId', 'relevantVocabularyIds'].includes(key))) throw new TypeError('Lookup requires subjectId and relevantVocabularyIds only');
+    const { subjectId, relevantVocabularyIds } = input;
+    requiredString(subjectId, 'subjectId');
+    if (!Array.isArray(relevantVocabularyIds) || relevantVocabularyIds.some((id) => typeof id !== 'string' || !id.trim())) throw new TypeError('relevantVocabularyIds must be an array of nonempty strings');
+    const projection = await projectFactualVocabulary(await store.bySubject(subjectId), subjectId);
+    return lookupFactualVocabulary(projection, subjectId, relevantVocabularyIds);
   }
   async function clearMemory() { sessionVersion += 1; drafts.clear(); activeSubject = null; await store.clear(); }
-  return Object.freeze({ prepare, confirm, processRecord, queryMemory, clearMemory, getSubjects: () => store.subjects(), getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
+  return Object.freeze({ prepare, confirm, processRecord, getVocabulary, queryMemory, clearMemory, getSubjects: () => store.subjects(), getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });
 }

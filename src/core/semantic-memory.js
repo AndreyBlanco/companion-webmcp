@@ -1,5 +1,4 @@
-export const SEMANTIC_KINDS = Object.freeze(['entity', 'claim', 'measurement', 'event', 'relationship', 'hypothesis']);
-export const PROVENANCE_TYPES = Object.freeze(['observed', 'measured', 'reported', 'speaker_inference', 'system_inference']);
+import { incorporateSemanticBuild, NODE_TYPES } from './semantic-authority.js';
 export const RESOLUTION_STATUSES = Object.freeze(['resolved', 'probable', 'ambiguous']);
 function requiredString(value, name) { if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${name} is required`); }
 
@@ -17,25 +16,9 @@ export function validateSubjectResolution(resolution) {
   return resolution;
 }
 
-export function validateSemanticItems(items, subject, rawText) {
-  if (!Array.isArray(items)) throw new TypeError('items must be an array');
-  for (const [index, item] of items.entries()) {
-    if (!SEMANTIC_KINDS.includes(item.kind)) throw new TypeError(`items[${index}].kind is invalid`);
-    requiredString(item.id, `items[${index}].id`); requiredString(item.subject, `items[${index}].subject`); requiredString(item.predicate, `items[${index}].predicate`);
-    if (!PROVENANCE_TYPES.includes(item.provenance)) throw new TypeError(`items[${index}].provenance is invalid`);
-    if (item.value === undefined || item.value === null || item.value === '') throw new TypeError(`items[${index}].value is required`);
-    if (!Array.isArray(item.evidence) || item.evidence.length === 0) throw new TypeError(`items[${index}].evidence is required`);
-    for (const excerpt of item.evidence) { requiredString(excerpt, `items[${index}].evidence excerpt`); if (!rawText.includes(excerpt)) throw new TypeError(`items[${index}].evidence must be an exact excerpt of rawText`); }
-    if (item.subject !== subject.id) throw new TypeError(`items[${index}].subject must match the confirmed subject`);
-  }
-  return items;
-}
-
-export function validateSemanticDelta(delta) { validateSubjectResolution(delta?.subjectResolution); validateSemanticItems(delta?.items, delta.subjectResolution.subject ?? { id: '' }, delta.items?.flatMap((item) => item.evidence ?? []).join(' ') ?? ''); return delta; }
-
 export class InMemorySemanticStore {
   #subjects = new Map(); #records = [];
-  async save({ subject, record }) { this.#subjects.set(subject.id, structuredClone(subject)); this.#records.push(structuredClone(record)); return structuredClone(record); }
+  async save({ subject, record }) { if (this.#records.some((entry) => entry.recordId === record.recordId)) throw new Error('Record identity collision'); this.#subjects.set(subject.id, structuredClone(subject)); this.#records.push(structuredClone(record)); return structuredClone(record); }
   async update(recordId, changes) { const index = this.#records.findIndex((record) => record.recordId === recordId); if (index < 0) throw new Error('Record not found'); this.#records[index] = { ...this.#records[index], ...structuredClone(changes) }; return structuredClone(this.#records[index]); }
   async byId(recordId) { const record = this.#records.find((candidate) => candidate.recordId === recordId); return record ? structuredClone(record) : null; }
   async subjects() { return [...this.#subjects.values()].map((subject) => structuredClone(subject)); }
@@ -56,7 +39,7 @@ export function createSemanticMemory({ store, detectSubject, buildSemantics, sel
     const draft = drafts.get(draftId); if (!draft || draft.confirmationToken !== confirmationToken) throw new Error('Draft or confirmation token is invalid');
     requiredString(confirmedRawText, 'confirmedRawText'); requiredString(confirmedSubject?.id, 'confirmedSubject.id'); requiredString(confirmedSubject?.type, 'confirmedSubject.type'); requiredString(confirmedSubject?.label, 'confirmedSubject.label');
     drafts.delete(draftId); const recordId = idFactory(); const confirmedAt = clock().toISOString();
-    const record = { recordId, subjectId: confirmedSubject.id, rawText: confirmedRawText, capturedAt: draft.capturedAt, confirmedAt, subjectConfirmation: { confirmedBy: 'user', corrected: JSON.stringify(draft.subjectResolution.subject) !== JSON.stringify(confirmedSubject), proposal: draft.subjectResolution }, semanticStatus: 'processing', semanticAttempts: 0, semanticItems: [] };
+    const record = { recordId, subjectId: confirmedSubject.id, rawText: confirmedRawText, capturedAt: draft.capturedAt, confirmedAt, subjectConfirmation: { confirmedBy: 'user', corrected: JSON.stringify(draft.subjectResolution.subject) !== JSON.stringify(confirmedSubject), proposal: draft.subjectResolution }, semanticStatus: 'processing', semanticAttempts: 0, semanticGraph: { nodes: [], edges: [] }, semanticAudit: null, semanticErrors: [] };
     record.confirmedSubject = structuredClone(confirmedSubject);
     await store.save({ subject: confirmedSubject, record }); activeSubject = structuredClone(confirmedSubject); return structuredClone(record);
   }
@@ -72,11 +55,17 @@ export function createSemanticMemory({ store, detectSubject, buildSemantics, sel
         if (version !== sessionVersion) return null;
         await store.update(recordId, { semanticStatus: 'processing', semanticAttempts: attempt }); onAttempt?.({ recordId, attempt, maxAttempts: attemptLimit });
         try {
-          const items = validateSemanticItems(await buildSemantics({ rawText: record.rawText, confirmedSubject }), confirmedSubject, record.rawText);
+          const output = await buildSemantics({ recordId, rawText: record.rawText, confirmedSubject });
           if (version !== sessionVersion) return null;
-          return await store.update(recordId, { semanticStatus: 'ready', semanticAttempts: attempt, semanticItems: items.map((item) => ({ ...item, sourceRecordId: recordId })) });
-        } catch {
-          if (attempt === attemptLimit && version === sessionVersion) return store.update(recordId, { semanticStatus: 'failed', semanticAttempts: attempt, semanticItems: [] });
+          const result = incorporateSemanticBuild(output, record);
+          result.semanticAudit.processedAt = clock().toISOString();
+          if (version !== sessionVersion) return null;
+          return await store.update(recordId, { semanticStatus: 'ready', semanticAttempts: attempt, ...result });
+        } catch (error) {
+          if (version !== sessionVersion) return null;
+          record.semanticErrors.push({ attempt, code: error.code ?? 'SEMANTIC_PROCESSING_FAILED' });
+          await store.update(recordId, { semanticErrors: record.semanticErrors });
+          if (attempt === attemptLimit) return store.update(recordId, { semanticStatus: 'failed', semanticAttempts: attempt, semanticGraph: { nodes: [], edges: [] } });
         }
       }
       return null;
@@ -84,7 +73,22 @@ export function createSemanticMemory({ store, detectSubject, buildSemantics, sel
     processing.set(recordId, task); return task;
   }
   async function queryMemory({ question, subjectId = activeSubject?.id, evidenceTypes }) {
-    requiredString(question, 'question'); requiredString(subjectId, 'subjectId'); const recordsConsidered = await store.bySubject(subjectId); const selection = await selectEvidence({ question, subjectId, records: recordsConsidered, evidenceTypes }); const allowed = new Map(recordsConsidered.map((record) => [record.recordId, record])); const selectedIds = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id)); const records = selectedIds.map((id) => allowed.get(id)).map((record) => ({ recordId: record.recordId, rawText: record.rawText, evidence: record.semanticItems.filter((item) => !evidenceTypes || evidenceTypes.includes(item.kind)) })).filter((record) => record.evidence.length > 0); const recordsUnavailable = recordsConsidered.filter((record) => record.semanticStatus !== 'ready').map((record) => ({ recordId: record.recordId, semanticStatus: record.semanticStatus, semanticAttempts: record.semanticAttempts ?? 0 })); return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), recordsUnavailable, subjectMemoryEmpty: recordsConsidered.length === 0, sufficiencyAssessment: 'external_agent' } };
+    requiredString(question, 'question'); requiredString(subjectId, 'subjectId');
+    if (evidenceTypes !== undefined && (!Array.isArray(evidenceTypes) || evidenceTypes.some((type) => !NODE_TYPES.includes(type)))) throw new TypeError('invalid evidenceTypes');
+    const recordsConsidered = await store.bySubject(subjectId);
+    const selection = await selectEvidence({ question, subjectId, records: recordsConsidered, evidenceTypes });
+    const allowed = new Map(recordsConsidered.filter((record) => record.semanticStatus === 'ready').map((record) => [record.recordId, record]));
+    const selectedIds = [...new Set(selection.recordIds ?? [])].filter((id) => allowed.has(id));
+    const records = selectedIds.map((id) => {
+      const record = allowed.get(id);
+      const matchingNodes = new Set(record.semanticGraph.nodes.filter((node) => !evidenceTypes || evidenceTypes.includes(node.type)).map((node) => node.id));
+      const evidence = record.semanticGraph.edges.filter((edge) => matchingNodes.has(edge.from) || matchingNodes.has(edge.to));
+      const endpoints = new Set(evidence.flatMap((edge) => [edge.from, edge.to]));
+      return { recordId: record.recordId, subjectId: record.subjectId, capturedAt: record.capturedAt, confirmedAt: record.confirmedAt, rawText: record.rawText,
+        evidence, nodes: record.semanticGraph.nodes.filter((node) => endpoints.has(node.id)), limitations: record.semanticAudit.stageA.limitations };
+    });
+    const recordsUnavailable = recordsConsidered.filter((record) => record.semanticStatus !== 'ready').map((record) => ({ recordId: record.recordId, semanticStatus: record.semanticStatus, semanticAttempts: record.semanticAttempts ?? 0 }));
+    return { subjectId, question, records, retrievalMetadata: { interpretation: selection.interpretation ?? null, recordsConsidered: recordsConsidered.map((record) => record.recordId), recordsReturned: records.map((record) => record.recordId), recordsUnavailable, subjectMemoryEmpty: recordsConsidered.length === 0, sufficiencyAssessment: 'external_agent' } };
   }
   async function clearMemory() { sessionVersion += 1; drafts.clear(); activeSubject = null; await store.clear(); }
   return Object.freeze({ prepare, confirm, processRecord, queryMemory, clearMemory, getSubjects: () => store.subjects(), getSubjectMemory: (subjectId) => store.bySubject(subjectId), getActiveSubject: () => structuredClone(activeSubject) });

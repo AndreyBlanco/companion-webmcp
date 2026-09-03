@@ -19,6 +19,7 @@ export async function processSemanticRequest({ method, headers, bodyText, detect
     if (input.operation === 'detect_subject') return response(200, await detectSubject({ rawText: input.rawText, activeSubject: input.activeSubject ?? null, existingSubjects: Array.isArray(input.existingSubjects) ? input.existingSubjects : [] }));
     const subject = input.confirmedSubject;
     if (!subject || typeof subject.id !== 'string' || !subject.id.trim() || typeof subject.type !== 'string' || !subject.type.trim() || typeof subject.label !== 'string' || !subject.label.trim()) return response(400, { error: 'A complete confirmedSubject is required.' });
-    return response(200, { items: await buildSemantics({ rawText: input.rawText, confirmedSubject: subject }) });
+    if (typeof input.recordId !== 'string' || !input.recordId.trim()) return response(400, { error: 'recordId is required.' });
+    return response(200, await buildSemantics({ recordId: input.recordId, rawText: input.rawText, confirmedSubject: subject }));
   } catch (error) { return providerError(error, input.operation); }
 }

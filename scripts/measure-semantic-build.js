@@ -6,8 +6,8 @@ const confirmedSubject = { id: 'bomba-delta-9', type: 'pump', label: 'Bomba Delt
 const build = createOpenAISemanticBuilder({ apiKey: process.env.OPENAI_API_KEY, model: process.env.COMPANION_SEMANTIC_MODEL || 'gpt-5-mini', timeoutMs: 120000, reasoningEffort: process.env.COMPANION_REASONING_EFFORT || 'minimal' });
 const started = performance.now();
 try {
-  const items = await build({ rawText, confirmedSubject });
-  console.log(JSON.stringify({ status: 'success', characters: rawText.length, words: rawText.trim().split(/\s+/).length, elapsedMs: Math.round(performance.now() - started), items: items.length }));
+  const output = await build({ recordId: 'synthetic-latency-record', rawText, confirmedSubject });
+  console.log(JSON.stringify({ status: 'success', characters: rawText.length, words: rawText.trim().split(/\s+/).length, elapsedMs: Math.round(performance.now() - started), candidates: output.stageA.candidates.length }));
 } catch (error) {
   console.log(JSON.stringify({ status: 'failed', characters: rawText.length, words: rawText.trim().split(/\s+/).length, elapsedMs: Math.round(performance.now() - started), errorType: error.name }));
   process.exitCode = 1;

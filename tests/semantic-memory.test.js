@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSemanticMemory, InMemorySemanticStore, validateSemanticDelta } from '../src/core/semantic-memory.js';
+import { createSemanticMemory, InMemorySemanticStore } from '../src/core/semantic-memory.js';
 import { createMemoryTool, registerWebMcp, MEMORY_TOOL_NAME } from '../src/webmcp/register.js';
 import { buildSyntheticSemantics, detectSyntheticSubject, selectSyntheticEvidence } from '../src/adapters/demo/semantic.js';
 
@@ -25,7 +25,7 @@ test('raw fidelity, confirmation boundary, provenance and source linkage are pre
   assert.deepEqual(await capabilities.getSubjectMemory('hyundai-accent-blue-2013'), []);
   const pending = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: rawText, confirmedSubject: draft.subjectResolution.subject });
   const record = await capabilities.processRecord(pending.recordId);
-  assert.equal(record.rawText, rawText); assert.equal(record.semanticItems[0].provenance, 'observed'); assert.equal(record.semanticItems[0].sourceRecordId, record.recordId);
+  assert.equal(record.rawText, rawText); assert.equal(record.semanticGraph.edges[0].provenance, 'observed'); assert.equal(record.semanticGraph.edges[0].sourceRecordId, record.recordId);
 });
 
 test('ambiguous subject resolution cannot persist silently', async () => {
@@ -38,7 +38,7 @@ test('active subject continuity creates progressive memory and retains speaker i
   const { capabilities } = harness(); await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
   await save(capabilities, 'La batería mide 12.4 voltios con el motor apagado.');
   const { record } = await save(capabilities, 'Creo que la causa parece ser la bobina de encendido.');
-  assert.equal(record.subjectConfirmation.proposal.status, 'probable'); assert.equal(record.semanticItems[0].provenance, 'speaker_inference');
+  assert.equal(record.subjectConfirmation.proposal.status, 'probable'); assert.equal(record.semanticGraph.edges[0].provenance, 'speaker_inference');
   assert.equal((await capabilities.getSubjectMemory('hyundai-accent-blue-2013')).length, 3);
 });
 
@@ -62,20 +62,6 @@ test('WebMCP registers the same internal capability and never adds an answer', a
   const payload = await createMemoryTool(capabilities).execute({ subjectId: 'missing', question: 'anything' }); assert.equal('answer' in payload, false);
 });
 
-test('semantic validation rejects unsupported provenance', () => {
-  assert.throws(() => validateSemanticDelta({ subjectResolution: { status: 'resolved', subject: { id: 'x', type: 'thing', label: 'X' }, reason: 'explicit' }, items: [{ id: 'x', kind: 'claim', subject: 'x', predicate: 'p', value: true, provenance: 'fact', evidence: ['x'] }] }), /provenance/);
-});
-
-test('semantic validation rejects non-literal evidence and subject mismatch', async () => {
-  const base = { subjectResolution: { status: 'resolved', subject: { id: 'subject-a', type: 'thing', label: 'A' }, reason: 'explicit' }, items: [{ id: 'x', kind: 'claim', subject: 'subject-a', predicate: 'p', value: true, provenance: 'reported', evidence: ['literal'] }] };
-  assert.throws(() => validateSemanticDelta({ ...base, items: [{ ...base.items[0], subject: 'subject-b' }] }), /match the confirmed subject/);
-  const { capabilities } = harness({ detectSubject: async () => base.subjectResolution, buildSemantics: async () => base.items });
-  const draft = await capabilities.prepare({ rawText: 'different source' });
-  const pending = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: 'different source', confirmedSubject: base.subjectResolution.subject });
-  const record = await capabilities.processRecord(pending.recordId);
-  assert.equal(record.semanticStatus, 'failed');
-});
-
 test('multiple confirmed entries remain available to deterministic external-agent retrieval', async () => {
   const { capabilities } = harness({ selectEvidence: async ({ records }) => ({ recordIds: records.map((record) => record.recordId) }) });
   await save(capabilities, 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.');
@@ -94,7 +80,7 @@ test('session memory can be explicitly cleared without retaining an active subje
 });
 
 test('human-confirmed subject overrides the model proposal before semantic processing', async () => {
-  let semanticInput; const { capabilities } = harness({ buildSemantics: async (input) => { semanticInput = input; return [{ id: 'x', kind: 'claim', subject: input.confirmedSubject.id, predicate: 'status', value: 'ok', unit: null, condition: null, provenance: 'reported', evidence: ['cilindro 2 no tiene chispa'] }]; } });
+  let semanticInput; const { capabilities } = harness({ buildSemantics: async (input) => { semanticInput = input; return buildSyntheticSemantics(input); } });
   const rawText = 'Hyundai Accent Blue 2013: el cilindro 2 no tiene chispa.'; const draft = await capabilities.prepare({ rawText }); const corrected = { id: 'corrected-device', type: 'device', label: 'Corrected Device' };
   const pending = await capabilities.confirm({ draftId: draft.draftId, confirmationToken: draft.confirmationToken, confirmed: true, confirmedRawText: rawText, confirmedSubject: corrected });
   const record = await capabilities.processRecord(pending.recordId);

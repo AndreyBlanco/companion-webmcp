@@ -9,7 +9,7 @@
     "demo": "node src/app/server.js",
     "demo:lan": "node src/app/server.js --lan",
     "test": "node --test",
-    "check": "node --check src/core/semantic-memory.js && node --check src/adapters/demo/semantic.js && node --check src/adapters/remote/semantic.js && node --check src/providers/openai-semantic.js && node --check src/providers/semantic-endpoint.js && node --check src/providers/openai-transcription.js && node --check src/webmcp/register.js && node --check src/app/client.js && node --check src/app/server.js && node --check src/lab-b/index.js && node --check src/lab-b/fixtures.js && node --check src/lab-b/cli.js && node --check netlify/functions/semantic-extract.mjs",
+    "check": "node --check src/core/semantic-authority.js && node --check src/core/semantic-memory.js && node --check src/adapters/demo/semantic.js && node --check src/adapters/remote/semantic.js && node --check src/providers/openai-semantic.js && node --check src/providers/semantic-endpoint.js && node --check src/providers/openai-transcription.js && node --check src/webmcp/register.js && node --check src/app/client.js && node --check src/app/server.js && node --check src/lab-b/index.js && node --check src/lab-b/fixtures.js && node --check src/lab-b/cli.js && node --check netlify/functions/semantic-extract.mjs",
     "build": "node scripts/build.js"
   },
   "engines": {

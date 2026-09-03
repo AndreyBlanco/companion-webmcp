@@ -23,3 +23,16 @@ test('public demo starts neutral and exposes an accessible processing state', as
   assert.match(client, /capabilities\.processRecord\(/);
   assert.match(html, /id="background-job-list"/);
 });
+
+test('public interface uses English throughout the entry lifecycle', async () => {
+  const html = await readFile(new URL('../src/app/index.html', import.meta.url), 'utf8');
+  const client = await readFile(new URL('../src/app/client.js', import.meta.url), 'utf8');
+  assert.match(html, /<html lang="en">/);
+  for (const text of ['Detect subject', 'Review and confirm', 'Confirm subject, save and process', 'Add another entry', 'Clear session memory', 'WebMCP and technical evidence']) {
+    assert.ok(html.includes(text), `Missing English label: ${text}`);
+  }
+  for (const text of ['Detected:', 'Existing:', 'Create or edit manually', 'Identifying the subject', 'processing, attempt', 'failed after', 'Draft discarded.', 'Session memory cleared.', 'WebMCP is unavailable']) {
+    assert.ok(client.includes(text), `Missing English status: ${text}`);
+  }
+  assert.doesNotMatch(html + client, /[áéíóúñ¿¡]/i);
+});

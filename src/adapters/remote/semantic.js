@@ -7,5 +7,5 @@ function createRemoteOperation({ operation, getAccessCode, fetchImpl = fetch }) 
   };
 }
 export const createRemoteSubjectDetector = (options) => createRemoteOperation({ operation: 'detect_subject', ...options });
-export function createRemoteSemanticBuilder(options) { const operation = createRemoteOperation({ operation: 'build_semantics', ...options }); return async (input) => (await operation(input)).items; }
+export function createRemoteSemanticBuilder(options) { const operation = createRemoteOperation({ operation: 'build_semantics', ...options }); return operation; }
 export async function selectAllConfirmedEvidence({ records }) { return { interpretation: 'Deterministic subject-scoped lookup. The calling agent evaluates relevance and sufficiency.', recordIds: records.filter((record) => record.semanticStatus === 'ready').map((record) => record.recordId) }; }

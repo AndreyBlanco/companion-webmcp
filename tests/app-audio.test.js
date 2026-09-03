@@ -8,7 +8,7 @@ test('demo server loads Companion and remains available after 404', async (t) =>
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   t.after(() => server.close()); const { port } = server.address();
   assert.equal((await fetch(`http://127.0.0.1:${port}/favicon.ico`)).status, 404);
-  const page = await fetch(`http://127.0.0.1:${port}/`); assert.equal(page.status, 200); assert.match(await page.text(), /memoria humana para agentes/);
+  const page = await fetch(`http://127.0.0.1:${port}/`); assert.equal(page.status, 200); assert.match(await page.text(), /human memory for agents/);
 });
 
 test('local semantic endpoint enforces the demo code and returns injected structured output', async (t) => {

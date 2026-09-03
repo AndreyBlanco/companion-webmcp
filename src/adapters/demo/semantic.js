@@ -14,12 +14,24 @@ export async function extractSyntheticDemo({ rawText, activeSubject }) {
 }
 
 export async function detectSyntheticSubject(input) { return (await extractSyntheticDemo(input)).subjectResolution; }
-export async function buildSyntheticSemantics({ rawText, confirmedSubject }) { const delta = await extractSyntheticDemo({ rawText, activeSubject: confirmedSubject }); return delta.items.map((entry) => ({ ...entry, subject: confirmedSubject.id })); }
+export async function buildSyntheticSemantics({ recordId, rawText, confirmedSubject }) {
+  const delta = await extractSyntheticDemo({ rawText, activeSubject: confirmedSubject });
+  const nodes = []; const candidates = [];
+  for (const [index, entry] of delta.items.entries()) {
+    const sourceEvidence = entry.evidence.map((quote) => ({ recordId, quote }));
+    const from = `assertion-${index}`; const to = `concept-${index}`;
+    nodes.push({ id: from, type: 'assertion', label: entry.provenance === 'speaker_inference' ? entry.evidence.join(' ') : `${entry.predicate}: ${entry.value}${entry.unit ? ` ${entry.unit}` : ''}${entry.condition ? ` (${entry.condition})` : ''}`, sourceEvidence });
+    nodes.push({ id: to, type: 'concept', label: confirmedSubject.label, sourceEvidence });
+    candidates.push({ id: `relation-${index}`, from, to, type: 'about', provenance: entry.provenance, sourceEvidence });
+  }
+  return { recordId, subjectId: confirmedSubject.id, stageA: { nodes, candidates, limitations: candidates.length ? [] : ['No representable relation in this synthetic fixture.'] },
+    stageB: candidates.map((candidate) => ({ ...structuredClone(candidate), epistemicStatus: 'SOURCE_EXPLICIT' })) };
+}
 
 export async function selectSyntheticEvidence({ question, records, evidenceTypes }) {
   const query = normalized(question); const asksCompression = query.includes('compresión') || query.includes('compresion');
   const predicates = asksCompression ? [] : [...(query.includes('cilindro 2') || query.includes('chispa') ? ['spark_status'] : []), ...(query.includes('causa') || query.includes('bobina') ? ['probable_cause', 'spark_status'] : []), ...(query.includes('volt') || query.includes('batería') || query.includes('bateria') ? ['battery_voltage'] : [])];
-  const recordIds = records.filter((record) => record.semanticItems.some((candidate) => predicates.includes(candidate.predicate) && (!evidenceTypes || evidenceTypes.includes(candidate.kind)))).map((record) => record.recordId);
+  const recordIds = records.filter((record) => record.semanticGraph.nodes.some((node) => (predicates.some((predicate) => node.label.includes(predicate)) || (predicates.includes('probable_cause') && node.label.includes('bobina'))) && (!evidenceTypes || evidenceTypes.includes(node.type)))).map((record) => record.recordId);
   return { interpretation: asksCompression ? 'No compression-test evidence is present.' : 'Synthetic predicate-based evidence selection.', recordIds };
 }
 

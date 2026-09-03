@@ -46,4 +46,4 @@ $('review-panel').addEventListener('submit', async (event) => {
 $('cancel').addEventListener('click', () => { resetCapture(); step('talk'); status('Draft discarded. No information was saved.'); });
 $('new-observation').addEventListener('click', () => { $('entry').value = ''; updateCount(); step('talk'); status('Ready for another entry.'); });
 $('clear-memory').addEventListener('click', async () => { await capabilities.clearMemory(); resetCapture(); savedCount = 0; $('memory-count').textContent = '0'; $('background-job-list').replaceChildren(); $('background-jobs').hidden = true; step('talk'); status('Session memory cleared. The demo is empty.', 'success'); });
-registerWebMcp(document.modelContext, capabilities);
+registerWebMcp(navigator.modelContext, capabilities);
